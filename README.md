@@ -274,11 +274,20 @@ iOS 端工程的原生插件代码全部包含在  ios/PolyvCloudClassModule 文
 2. 如果目标项目原来有 Podfile 文件，只需要把以下代码拷贝到  ios/Podfile 文件 中；
 
 ```
+platform :ios, '9.0'
+
+target '你的项目名' do
   use_frameworks!
   
   pod 'Masonry', '~> 1.1.0'
   pod 'SDWebImage', '~> 4.4.0'
   pod 'PolyvCloudClassSDK', '0.9.0-beta'
+  
+  # 执行 npm install 命令之后，有可能会自动生成下面这两行配置，需要把这两行配置删掉或者注释掉
+  # pod 'RNReanimated', :path => '../node_modules/react-native-reanimated'
+  # pod 'RNGestureHandler', :path => '../node_modules/react-native-gesture-handler'
+
+end
 ```
 
 注意：
