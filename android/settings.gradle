@@ -1,0 +1,26 @@
+rootProject.name = 'PolyvRNCloudClassDemo'
+include ':react-native-gesture-handler', ':commonui', ':polyvsdk'
+project(':react-native-gesture-handler').projectDir = new File(rootProject.projectDir, '../node_modules/react-native-gesture-handler/android')
+include ':react-native-reanimated'
+project(':react-native-reanimated').projectDir = new File(rootProject.projectDir, '../node_modules/react-native-reanimated/android')
+
+include ':app'
+
+//include ':demo'
+//project(':demo').projectDir = new File("../../../cloud/PolyvAndroidCloudClassDemo/demo")
+//include ':commonui'
+//project(':commonui').projectDir = new File("../../../cloud/PolyvAndroidCloudClassDemo/commonui")
+
+//include ':foundation'
+//project(':foundation').projectDir = new File("../../../cloud/PolyvAndroidSDKFoundation/foundation")
+//
+////不添加引入  不能够用git提交，添加以后，功能结构就不是纯module形式
+////include':PolyvAndroidCloudSDK'
+////project(':PolyvAndroidCloudSDK').projectDir= new File("../PolyvAndroidCloudSDK")
+//include ':business'
+//project(':business').projectDir = new File("../../../cloud/PolyvAndroidSDKBusiness/business")
+//
+//include ':polyvCloudClassSDK'
+//project(':polyvCloudClassSDK').projectDir = new File("../../../cloud/PolyvAndroidCloudClassSDK/polyvCloudClassSDK")
+//include ':polyvLinkMic'
+//project(':polyvLinkMic').projectDir = new File("../../../cloud/PolyvAndroidCloudClassSDK/polyvLinkMic")

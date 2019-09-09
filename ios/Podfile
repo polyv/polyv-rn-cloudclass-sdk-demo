@@ -1,0 +1,14 @@
+platform :ios, '9.0'
+
+target 'PolyvRNCloudClassDemo' do
+  use_frameworks!
+  
+  pod 'Masonry', '~> 1.1.0'
+  pod 'SDWebImage', '~> 4.4.0'
+  pod 'PolyvCloudClassSDK', '0.9.0-beta'
+  
+  pod 'RNReanimated', :path => '../node_modules/react-native-reanimated'
+
+  pod 'RNGestureHandler', :path => '../node_modules/react-native-gesture-handler'
+
+end
