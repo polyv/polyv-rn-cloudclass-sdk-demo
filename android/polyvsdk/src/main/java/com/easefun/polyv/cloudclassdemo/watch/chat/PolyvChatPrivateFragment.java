@@ -2,7 +2,7 @@ package com.easefun.polyv.cloudclassdemo.watch.chat;
 
 import android.widget.Toast;
 
-import com.blankj.utilcode.util.ConvertUtils;
+import com.easefun.polyv.thirdpart.blankj.utilcode.util.ConvertUtils;
 import com.easefun.polyv.cloudclass.chat.PolyvChatManager;
 import com.easefun.polyv.cloudclass.chat.PolyvQuestionMessage;
 import com.easefun.polyv.cloudclass.chat.event.PolyvEventHelper;

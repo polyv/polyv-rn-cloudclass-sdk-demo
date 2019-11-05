@@ -20,6 +20,7 @@ import com.easefun.polyv.businesssdk.model.link.PolyvJoinInfoEvent;
 import com.easefun.polyv.cloudclassdemo.R;
 import com.easefun.polyv.cloudclassdemo.watch.chat.PolyvChatGroupFragment;
 import com.easefun.polyv.cloudclassdemo.watch.linkMic.widget.PolyvSmoothRoundProgressView;
+import com.easefun.polyv.commonui.utils.imageloader.PolyvImageLoader;
 import com.easefun.polyv.foundationsdk.log.PolyvCommonLog;
 import com.easefun.polyv.foundationsdk.rx.PolyvRxTimer;
 import com.easefun.polyv.foundationsdk.utils.PolyvAppUtils;
@@ -40,9 +41,9 @@ import io.reactivex.functions.Consumer;
 /**
  * @author df
  * @create 2018/11/20
- * @Describe  用于展示普通直播的适配器
+ * @Describe 用于展示普通直播的适配器
  */
-public class PolyvNormalLiveLinkMicDataBinder extends IPolyvDataBinder{
+public class PolyvNormalLiveLinkMicDataBinder extends IPolyvDataBinder {
     private static final String TAG = "PolyvLinkMicDataBinder";
     private static final int CAMERA_VIEW_ID = 817;
 
@@ -60,10 +61,8 @@ public class PolyvNormalLiveLinkMicDataBinder extends IPolyvDataBinder{
 
     private List<SurfaceView> cachesView = new ArrayList<>();
 
-    private ViewGroup linkMicFrontView,frontParentView;//直播连麦时，前面两个连麦者的视图
+    private ViewGroup linkMicFrontView, frontParentView;//直播连麦时，前面两个连麦者的视图
 
-    private RequestOptions requestOptions_t;
-    private RequestOptions requestOptions_s;
 
     public PolyvNormalLiveLinkMicDataBinder(String myUid) {
         this.myUid = myUid;
@@ -78,7 +77,7 @@ public class PolyvNormalLiveLinkMicDataBinder extends IPolyvDataBinder{
         ViewGroup frontView = frontParentView.findViewById(R.id.link_mic_fixed_position);
 
         this.linkMicFrontView = frontView;
-        if(linkMicFrontView != null){
+        if (linkMicFrontView != null) {
             this.linkMicFrontView.setVisibility(View.VISIBLE);//isAudio?View.VISIBLE:View.GONE
         }
 //        if(bottomView != null ){
@@ -102,14 +101,14 @@ public class PolyvNormalLiveLinkMicDataBinder extends IPolyvDataBinder{
         }
         joins.put(myUid, owern);
 
-        onBindViewHolder(onCreateViewHolder(parentView, 0,true), 0);
+        onBindViewHolder(onCreateViewHolder(parentView, 0, true), 0);
     }
 
     @NonNull
-    public PolyvNormalLiveLinkMicDataBinder.PolyvMicHodler onCreateViewHolder(@NonNull ViewGroup parent, int pos,boolean isFront) {
+    public PolyvNormalLiveLinkMicDataBinder.PolyvMicHodler onCreateViewHolder(@NonNull ViewGroup parent,final int pos,final boolean isFront) {
         PolyvCommonLog.d(TAG, "onCreateViewHolder:"+pos);
-        ViewGroup child = (ViewGroup) View.inflate(parent.getContext(), R.layout.normal_live_link_mic_item, null);
-        PolyvNormalLiveLinkMicDataBinder.PolyvMicHodler polyvMicHodler = new PolyvNormalLiveLinkMicDataBinder.PolyvMicHodler(child);
+        final ViewGroup child = (ViewGroup) View.inflate(parent.getContext(), R.layout.normal_live_link_mic_item, null);
+        final PolyvNormalLiveLinkMicDataBinder.PolyvMicHodler polyvMicHodler = new PolyvNormalLiveLinkMicDataBinder.PolyvMicHodler(child);
         parentView.post(new Runnable() {
             @Override
             public void run() {
@@ -154,9 +153,9 @@ public class PolyvNormalLiveLinkMicDataBinder extends IPolyvDataBinder{
 
         PolyvJoinInfoEvent polyvJoinRequestSEvent = joins.get(uid);
         if (polyvJoinRequestSEvent != null) {
-            loadAvtar(polyvJoinRequestSEvent.getPic(),polyvJoinRequestSEvent.getUserType(),holder.cover);
+            loadAvtar(polyvJoinRequestSEvent.getPic(), polyvJoinRequestSEvent.getUserType(), holder.cover);
             holder.polyvLinkNick.setText(polyvJoinRequestSEvent.getNick());
-            if(TextUtils.isEmpty(polyvJoinRequestSEvent.getNick())){
+            if (TextUtils.isEmpty(polyvJoinRequestSEvent.getNick())) {
                 holder.normalLinkMicView.setOnClickListener(null);
             }
         }
@@ -199,24 +198,26 @@ public class PolyvNormalLiveLinkMicDataBinder extends IPolyvDataBinder{
 
     }
 
-    public void loadAvtar(String pic,String userType,CircleImageView circleImageView) {
-        //加载头像
-        if (requestOptions_t == null) {
-            requestOptions_t = new RequestOptions()
-                    .placeholder(com.easefun.polyv.commonui.R.drawable.polyv_default_teacher)
-                    .error(com.easefun.polyv.commonui.R.drawable.polyv_default_teacher)
-                    .diskCacheStrategy(DiskCacheStrategy.NONE);
+    public void loadAvtar(String pic, String userType, CircleImageView circleImageView) {
+        if (PolyvChatGroupFragment.isTeacherType(userType)) {
+            PolyvImageLoader.getInstance()
+                    .loadImageNoDiskCache(
+                            parentView.getContext(),
+                            pic,
+                            R.drawable.polyv_default_teacher,
+                            R.drawable.polyv_default_teacher,
+                            circleImageView
+                    );
+        } else {
+            PolyvImageLoader.getInstance()
+                    .loadImageNoDiskCache(
+                            parentView.getContext(),
+                            pic,
+                            R.drawable.polyv_missing_face,
+                            R.drawable.polyv_missing_face,
+                            circleImageView
+                    );
         }
-        if (requestOptions_s == null) {
-            requestOptions_s = new RequestOptions()
-                    .placeholder(com.easefun.polyv.commonui.R.drawable.polyv_missing_face)
-                    .error(com.easefun.polyv.commonui.R.drawable.polyv_missing_face)
-                    .diskCacheStrategy(DiskCacheStrategy.NONE);
-        }
-        Glide.with(parentView.getContext())
-                .load(pic)
-                .apply(PolyvChatGroupFragment.isTeacherType(userType) ? requestOptions_t : requestOptions_s)
-                .into(circleImageView);
     }
 
     private void addTeacher(String teacherId, PolyvJoinInfoEvent teacherEvent) {
@@ -245,10 +246,10 @@ public class PolyvNormalLiveLinkMicDataBinder extends IPolyvDataBinder{
 
     public boolean notifyItemChanged(int pos, boolean mute) {
         View child = null;
-        if(pos <2){
-             child = linkMicFrontView.getChildAt(pos);
-        }else{
-            child = parentView.getChildAt(pos-2);
+        if (pos < 2) {
+            child = linkMicFrontView.getChildAt(pos);
+        } else {
+            child = parentView.getChildAt(pos - 2);
         }
         SurfaceView surfaceView = child.findViewById(CAMERA_VIEW_ID);
         if(child == null){
@@ -260,9 +261,9 @@ public class PolyvNormalLiveLinkMicDataBinder extends IPolyvDataBinder{
     }
 
 
-    public int getJoinsPos(String uid){
+    public int getJoinsPos(String uid) {
         PolyvJoinInfoEvent joinInfoEvent = joins.get(uid);
-        if(joinInfoEvent == null){
+        if (joinInfoEvent == null) {
             return -1;
         }
         return joinInfoEvent.getPos();
@@ -271,28 +272,28 @@ public class PolyvNormalLiveLinkMicDataBinder extends IPolyvDataBinder{
     @Override
     public synchronized void startAudioWave(IRtcEngineEventHandler.AudioVolumeInfo[] speakers, int totalVolume) {
         super.startAudioWave(speakers, totalVolume);
-        if(totalVolume == 0){
+        if (totalVolume == 0) {
             return;
         }
-        for(IRtcEngineEventHandler.AudioVolumeInfo audioVolumeInfo:speakers){
-            PolyvJoinInfoEvent joinInfoEvent  = null;
-            if(audioVolumeInfo.uid == 0){
+        for (IRtcEngineEventHandler.AudioVolumeInfo audioVolumeInfo : speakers) {
+            PolyvJoinInfoEvent joinInfoEvent = null;
+            if (audioVolumeInfo.uid == 0) {
                 joinInfoEvent = joins.get(myUid);
-            }else{
-                joinInfoEvent = joins.get(audioVolumeInfo.uid+"");
+            } else {
+                joinInfoEvent = joins.get(audioVolumeInfo.uid + "");
             }
-            if(joinInfoEvent == null){
-                PolyvCommonLog.e(TAG,"startAudioWave error useid ："+audioVolumeInfo.uid);
+            if (joinInfoEvent == null) {
+                PolyvCommonLog.e(TAG, "startAudioWave error useid ：" + audioVolumeInfo.uid);
                 return;
             }
-            PolyvCommonLog.e(TAG,"startAudioWave uid:"+audioVolumeInfo.uid+"  progess:"+audioVolumeInfo.volume);
+            PolyvCommonLog.e(TAG, "startAudioWave uid:" + audioVolumeInfo.uid + "  progess:" + audioVolumeInfo.volume);
             int pos = joinInfoEvent.getPos();
             ViewGroup soundRound = null;
-            if(joinInfoEvent.getUserId().equals(teacherId)){//|| pos == 1
+            if (joinInfoEvent.getUserId().equals(teacherId)) {//|| pos == 1
                 soundRound = (ViewGroup) linkMicFrontView.getChildAt(pos);
                 PolyvSmoothRoundProgressView polyvSmoothRoundProgressView = soundRound.findViewById(R.id.link_mic_sound_around);
                 polyvSmoothRoundProgressView.setMaxNum(totalVolume);
-                polyvSmoothRoundProgressView.setProgressNum(audioVolumeInfo.volume,5000);
+                polyvSmoothRoundProgressView.setProgressNum(audioVolumeInfo.volume, 5000);
             }
 //            else {
 //                soundRound = (ViewGroup) parentView.getChildAt(pos-2);
@@ -311,9 +312,10 @@ public class PolyvNormalLiveLinkMicDataBinder extends IPolyvDataBinder{
         public ImageView cameraSwitch;
 
         private Disposable nickShowTimer;
+
         public void startNickTimer() {
             polyvLinkNick.setVisibility(View.VISIBLE);
-            if(nickShowTimer != null){
+            if (nickShowTimer != null) {
                 nickShowTimer.dispose();
                 nickShowTimer = null;
             }
@@ -325,6 +327,7 @@ public class PolyvNormalLiveLinkMicDataBinder extends IPolyvDataBinder{
                 }
             });
         }
+
         public PolyvMicHodler(View itemView) {
             super(itemView);
             normalLinkMicView = itemView.findViewById(R.id.normal_live_link_mic_container);
@@ -376,10 +379,10 @@ public class PolyvNormalLiveLinkMicDataBinder extends IPolyvDataBinder{
                 if ("teacher".equals(requestSEvent.getUserType())) {
                     requestSEvent.setPos(0);
 //                    notifyItemInserted(0);//通知数据与界面重新绑定
-                    onBindViewHolder(onCreateViewHolder(parentView, 0,true), 0);
+                    onBindViewHolder(onCreateViewHolder(parentView, 0, true), 0);
                 } else {
                     requestSEvent.setPos(uids.size() - 1);
-                    onBindViewHolder(onCreateViewHolder(parentView, uids.size() - 1,false), uids.size() - 1);
+                    onBindViewHolder(onCreateViewHolder(parentView, uids.size() - 1, false), uids.size() - 1);
 //                    notifyItemInserted(uids.size() - 1);//通知数据与界面重新绑定
                 }
             }
@@ -405,7 +408,7 @@ public class PolyvNormalLiveLinkMicDataBinder extends IPolyvDataBinder{
         }
     }
 
-    public void removeData(String uid,boolean removeView) {
+    public void removeData(String uid, boolean removeView) {
         if (TextUtils.isEmpty(uid)) {
             return;
         }
@@ -416,13 +419,13 @@ public class PolyvNormalLiveLinkMicDataBinder extends IPolyvDataBinder{
             pos = infoEvent.getPos();
         }
         PolyvCommonLog.d(TAG, "remove pos :" + pos);
-        if(removeView){
-            notifyItemRemoved(pos-2);
+        if (removeView) {
+            notifyItemRemoved(pos - 2);
         }
 
         arrangeDataPos();
 
-        if(uids.size() == 2){
+        if (uids.size() == 2) {
             frontParentView.setBackgroundColor(Color.TRANSPARENT);
         }
     }
@@ -430,9 +433,9 @@ public class PolyvNormalLiveLinkMicDataBinder extends IPolyvDataBinder{
     private void notifyItemRemoved(int pos) {
         if (parentView != null) {
 
-            if(parentView.getChildAt(pos) != null){
+            if (parentView.getChildAt(pos) != null) {
                 parentView.removeViewAt(pos);
-            }else {
+            } else {
 //                ToastUtils.showLong("notifyItemRemoved:is null"+pos);
             }
         }
@@ -442,7 +445,7 @@ public class PolyvNormalLiveLinkMicDataBinder extends IPolyvDataBinder{
         clearSurfaceview();
         uids.clear();
         joins.clear();
-        if(linkMicFrontView != null){
+        if (linkMicFrontView != null) {
             linkMicFrontView.removeAllViews();
         }
         teacherView = null;

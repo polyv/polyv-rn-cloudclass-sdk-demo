@@ -18,22 +18,15 @@ package com.easefun.polyv.commonui.widget;
 import android.content.Context;
 import android.content.res.TypedArray;
 import android.graphics.Canvas;
-import android.graphics.Color;
 import android.graphics.Paint;
 import android.graphics.PorterDuff;
 import android.graphics.PorterDuffXfermode;
-import android.graphics.RadialGradient;
 import android.graphics.Rect;
-import android.graphics.Shader;
-import android.graphics.Typeface;
 import android.support.v4.content.res.ResourcesCompat;
-import android.support.v4.graphics.ColorUtils;
 import android.util.AttributeSet;
 import android.view.View;
 
-import com.blankj.utilcode.util.Utils;
 import com.easefun.polyv.commonui.R;
-import com.easefun.polyv.foundationsdk.log.PolyvCommonLog;
 
 public class PolyvMediaCheckView extends View {
 

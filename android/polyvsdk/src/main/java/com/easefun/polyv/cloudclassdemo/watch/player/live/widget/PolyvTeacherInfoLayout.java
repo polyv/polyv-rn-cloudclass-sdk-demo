@@ -19,6 +19,7 @@ import com.easefun.polyv.cloudclass.model.PolyvTeacherStatusInfo;
 import com.easefun.polyv.cloudclassdemo.R;
 import com.easefun.polyv.cloudclassdemo.watch.PolyvDemoClient;
 import com.easefun.polyv.cloudclassdemo.watch.player.live.PolyvCloudClassVideoHelper;
+import com.easefun.polyv.commonui.utils.imageloader.PolyvImageLoader;
 import com.easefun.polyv.commonui.widget.PolyvTouchContainerView;
 import com.easefun.polyv.foundationsdk.log.PolyvCommonLog;
 import com.easefun.polyv.foundationsdk.rx.PolyvRxBus;
@@ -118,7 +119,7 @@ public class PolyvTeacherInfoLayout extends LinearLayout implements View.OnClick
         compositeDisposable.add(PolyvRxBus.get().toObservable(PolyvTeacherStatusInfo.class).
                 subscribe(new Consumer<PolyvTeacherStatusInfo>() {
                     @Override
-                    public void accept(PolyvTeacherStatusInfo polyvLiveClassDetailVO) throws Exception {
+                    public void accept(final PolyvTeacherStatusInfo polyvLiveClassDetailVO) throws Exception {
                         post(new Runnable() {
                             @Override
                             public void run() {
@@ -183,6 +184,7 @@ public class PolyvTeacherInfoLayout extends LinearLayout implements View.OnClick
         PolyvTeacherInfo teacherInfo = PolyvDemoClient.getInstance().getTeacher();
         if(teacherInfo != null){
             teacherNameVertical.setText(teacherInfo.getData().getNick());
+            PolyvImageLoader.getInstance().loadImage(this.getContext(),teacherInfo.getData().getPic(),teacherImg);
         }
     }
 
@@ -194,7 +196,7 @@ public class PolyvTeacherInfoLayout extends LinearLayout implements View.OnClick
     }
     // </editor-fold>
 
-    private void showOrHideLinkmicLayout(boolean show) {
+    private void showOrHideLinkmicLayout(final boolean show) {
         linkMicLayout.post(new Runnable() {
             @Override
             public void run() {

@@ -18,12 +18,11 @@ import android.widget.MediaController;
 import android.widget.PopupWindow;
 import android.widget.TextView;
 
-import com.blankj.utilcode.util.ScreenUtils;
+import com.easefun.polyv.thirdpart.blankj.utilcode.util.ScreenUtils;
 import com.easefun.polyv.businesssdk.model.video.PolyvBitrateVO;
 import com.easefun.polyv.businesssdk.model.video.PolyvDefinitionVO;
 import com.easefun.polyv.businesssdk.model.video.PolyvLiveLinesVO;
 import com.easefun.polyv.businesssdk.model.video.PolyvMediaPlayMode;
-import com.easefun.polyv.cloudclass.model.PolyvLiveClassDetailVO;
 import com.easefun.polyv.cloudclass.model.PolyvTeacherStatusInfo;
 import com.easefun.polyv.cloudclass.video.PolyvCloudClassVideoView;
 import com.easefun.polyv.cloudclass.video.api.IPolyvCloudClassController;
@@ -159,28 +158,47 @@ public class PolyvCloudClassMediaController extends PolyvCommonMediacontroller<P
 
         //更多
         moreLayout = new PolyvCloudClassMoreLayout(context, this);
-        moreLayout.injectShowMediaControllerFunction(this::show);
-        moreLayout.injectShowGradientBarFunction(show -> {
-            flGradientBarLand.setVisibility(show ? View.VISIBLE : View.GONE);
-            flGradientBarPort.setVisibility(show ? View.VISIBLE : View.GONE);
+        moreLayout.injectShowMediaControllerFunction(new PolyvCloudClassMoreLayout.ShowMediaControllerFunction() {
+            @Override
+            public void showMediaController() {
+                PolyvCloudClassMediaController.this.show();
+            }
         });
-        moreLayout.setOnBitrateSelectedListener((definitionVO, pos) -> polyvVideoView.changeBitRate(pos));
-        moreLayout.setOnLinesSelectedListener((line,linePos) ->{
-            polyvVideoView.changeLines(linePos);
+        moreLayout.injectShowGradientBarFunction(new PolyvCloudClassMoreLayout.ShowGradientBarFunction() {
+            @Override
+            public void showGradientBar(boolean show) {
+                flGradientBarLand.setVisibility(show ? View.VISIBLE : View.GONE);
+                flGradientBarPort.setVisibility(show ? View.VISIBLE : View.GONE);
+            }
         });
-        moreLayout.setOnOnlyAudioSwitchListener(onlyAudio -> {
-            if (polyvCloudClassPlayerHelper.isJoinLinkMick()) {
-                return false;
-            } else {
-                if (onlyAudio) {
-                    polyvVideoView.changeMediaPlayMode(PolyvMediaPlayMode.MODE_AUDIO);
+        moreLayout.setOnBitrateSelectedListener(new PolyvCloudClassMoreLayout.OnBitrateSelectedListener() {
+            @Override
+            public void onBitrateSelected(PolyvDefinitionVO definitionVO, int pos) {
+                polyvVideoView.changeBitRate(pos);
+            }
+        });
+        moreLayout.setOnLinesSelectedListener(new PolyvCloudClassMoreLayout.OnLinesSelectedListener() {
+            @Override
+            public void onLineSelected(PolyvLiveLinesVO line, int linePos) {
+                polyvVideoView.changeLines(linePos);
+            }
+        });
+        moreLayout.setOnOnlyAudioSwitchListener(new PolyvCloudClassMoreLayout.OnOnlyAudioSwitchListener() {
+            @Override
+            public boolean onOnlyAudioSelect(boolean onlyAudio) {
+                if (polyvCloudClassPlayerHelper.isJoinLinkMick()) {
+                    return false;
                 } else {
-                    polyvVideoView.changeMediaPlayMode(PolyvMediaPlayMode.MODE_VIDEO);
+                    if (onlyAudio) {
+                        polyvVideoView.changeMediaPlayMode(PolyvMediaPlayMode.MODE_AUDIO);
+                    } else {
+                        polyvVideoView.changeMediaPlayMode(PolyvMediaPlayMode.MODE_VIDEO);
+                    }
+                    if (showPPT) {
+                        PolyvCloudClassMediaController.this.showCameraView();
+                    }
+                    return true;
                 }
-                if (showPPT){
-                    showCameraView();
-                }
-                return true;
             }
         });
 
@@ -315,8 +333,11 @@ public class PolyvCloudClassMediaController extends PolyvCommonMediacontroller<P
     public void changeToLandscape() {
         super.changeToLandscape();
 //        danmuController.onLandscape();
-        videoDanmuPort.post(() -> {
-            danmuController.refreshDanmuStatus();
+        videoDanmuPort.post(new Runnable() {
+            @Override
+            public void run() {
+                danmuController.refreshDanmuStatus();
+            }
         });
     }
 
@@ -324,8 +345,11 @@ public class PolyvCloudClassMediaController extends PolyvCommonMediacontroller<P
     public void changeToPortrait() {
         super.changeToPortrait();
 //        danmuController.onPortrait();
-        videoDanmuPort.post(() -> {
-            danmuController.refreshDanmuStatus();
+        videoDanmuPort.post(new Runnable() {
+            @Override
+            public void run() {
+                danmuController.refreshDanmuStatus();
+            }
         });
     }
 
@@ -345,7 +369,7 @@ public class PolyvCloudClassMediaController extends PolyvCommonMediacontroller<P
     @Override
     public void destroy() {
         if (danmuFragment != null) {
-            danmuFragment.onDestroy();
+            danmuFragment.release();
             danmuFragment = null;
         }
         if (popupWindowTimer != null) {
@@ -411,7 +435,7 @@ public class PolyvCloudClassMediaController extends PolyvCommonMediacontroller<P
     public void updatePPTShowStatus(boolean showPPT) {
         this.showPPT = showPPT;
         videoPptChangeSwitchPort.setVisibility(showPPT ? VISIBLE : GONE);
-        videoScreenSwitchLand.setVisibility(showPPT ? VISIBLE : GONE);
+        videoScreenSwitchLand.setVisibility(showPPT ? VISIBLE : INVISIBLE);
     }
 
     public void showCameraView() {
@@ -564,7 +588,7 @@ public class PolyvCloudClassMediaController extends PolyvCommonMediacontroller<P
         videoDanmuLand.setVisibility(INVISIBLE);
         videoDanmuPort.setVisibility(INVISIBLE);
 
-        videoScreenSwitchLand.setVisibility(GONE);
+        videoScreenSwitchLand.setVisibility(INVISIBLE);
         videoPptChangeSwitchPort.setVisibility(GONE);
 
         tvStartSendDanmuLand.setVisibility(INVISIBLE);
@@ -609,7 +633,7 @@ public class PolyvCloudClassMediaController extends PolyvCommonMediacontroller<P
         videoHandsUpPort.setSelected(!videoHandsUpPort.isSelected());
     }
 
-    public void showStopLinkDialog(boolean joinSuccess, final boolean isExit) {
+    public void showStopLinkDialog(final boolean joinSuccess, final boolean isExit) {
         String message = joinSuccess ? String.format("您将断开与老师同学间的通话%s。", isExit ? "并退出" : "") :
                 "您将取消连线申请";
         String btnMsg = joinSuccess ? String.format("挂断%s", isExit ? "并退出" : "") : "取消连线";
@@ -677,9 +701,12 @@ public class PolyvCloudClassMediaController extends PolyvCommonMediacontroller<P
 
 
         void init() {
-            videoDanmuPort.post(() -> {
-                toggleDanmu();
-                refreshDanmuStatus();
+            videoDanmuPort.post(new Runnable() {
+                @Override
+                public void run() {
+                    DanmuController.this.toggleDanmu();
+                    DanmuController.this.refreshDanmuStatus();
+                }
             });
         }
 
@@ -802,12 +829,10 @@ public class PolyvCloudClassMediaController extends PolyvCommonMediacontroller<P
         int id = v.getId();
         if (id == R.id.video_danmu_land || id == R.id.video_danmu_port) {
             danmuController.toggleDanmu();
-
         } else if (id == R.id.video_hands_up_land || id == R.id.video_hands_up_port) {
             if (!polyvCloudClassPlayerHelper.requestPermission()) {
                 return;
             }
-
         } else if (id == R.id.video_ppt_change_switch_port || id == R.id.video_ppt_change_switch_land) {
             v.setSelected(!v.isSelected());
             if (showCamer) {
@@ -816,11 +841,9 @@ public class PolyvCloudClassMediaController extends PolyvCommonMediacontroller<P
                 hideSubView();
 //                    changePPTVideoLocation();
             }
-
         } else if (id == R.id.video_refresh_land || id == R.id.video_refresh_port) {
             refreshVideoView();
-
-//            case R.id.video_screen_switch_land:
+            //            case R.id.video_screen_switch_land:
 //                changeToPortrait();
 //                polyvCloudClassPlayerHelper.resetFloatViewPort();
 //                break;

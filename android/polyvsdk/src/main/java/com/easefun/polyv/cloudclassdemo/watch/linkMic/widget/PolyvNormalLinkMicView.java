@@ -165,7 +165,7 @@ public class PolyvNormalLinkMicView extends LinearLayout implements IPolyvRotate
     }
 
     @Override
-    public void topSubviewTo(int top) {
+    public void topSubviewTo(final int top) {
         post(new Runnable() {
             @Override
             public void run() {

@@ -63,8 +63,6 @@ public class PolyvWebViewHelper {
         // 允许加载本地 html 文件/false
         webSettings.setAllowFileAccess(true);
 
-        webSettings.setUseWideViewPort(true);
-        webSettings.setLoadWithOverviewMode(true);
 //        webSettings.setLayoutAlgorithm(WebSettings.LayoutAlgorithm.NARROW_COLUMNS);
         // 允许通过 file url 加载的 Javascript 读取其他的本地文件,Android 4.1 之前默认是true，在 Android 4.1 及以后默认是false,也就是禁止
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.JELLY_BEAN) {

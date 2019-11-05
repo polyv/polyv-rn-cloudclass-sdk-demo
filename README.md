@@ -280,8 +280,8 @@ target '你的项目名' do
   use_frameworks!
   
   pod 'Masonry', '~> 1.1.0'
-  pod 'SDWebImage', '~> 4.4.0'
-  pod 'PolyvCloudClassSDK', '0.9.0-beta'
+  pod 'SDWebImage', '4.4.0'
+  pod 'PolyvCloudClassSDK', '0.9.0'
   
   # 执行 npm install 命令之后，有可能会自动生成下面这两行配置，需要把这两行配置删掉或者注释掉
   # pod 'RNReanimated', :path => '../node_modules/react-native-reanimated'
@@ -305,5 +305,28 @@ end
 
 ```
 `<?xml version=``"1.0"` `encoding=``"UTF-8"``?>``<!DOCTYPE plist PUBLIC ``"-//Apple//DTD PLIST 1.0//EN"` `"http://www.apple.com/DTDs/PropertyList-1.0.dtd"``>``<plist version=``"1.0"``>``<dict>``    ``……``    ``<key>NSPhotoLibraryUsageDescription</key>``    ``<string>允许App访问相册以保存截图或读取相册视频文件</string>``    ``<key>UIBackgroundModes</key>``    ``<array>``        ``<string>audio</string>``    ``</array>``    ``……``</dict>``</plist>`
+```
+
+
+
+#### 2.3.3 Xcode 10 升级到 Xcode 11 项目运行报错问题解决
+
+Xcode 更新到 v11之后，运行之前 v10 的项目，提示如下错误：
+
+```
+Unknown argument type '__attribute__' in method -[RCTAppState getCurrentAppState:error:]. Extend RCTConvert to support this type
+```
+
+解决方案：
+
+Xcode 打开项目，找到 Library 路径下的 React 项目，找到位于路径 React/Base 下的文件 RCTModuleMethod.mm 文件，找到如下方法 'RCTParseUnused'，添加 return 语句中的第二行：
+
+```
+static BOOL RCTParseUnused(const char **input)
+{
+  return RCTReadString(input, "__unused") ||
+         RCTReadString(input, "__attribute__((__unused__))") ||
+         RCTReadString(input, "__attribute__((unused))");
+}
 ```
 

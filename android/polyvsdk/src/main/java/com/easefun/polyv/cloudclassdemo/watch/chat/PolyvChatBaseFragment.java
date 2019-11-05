@@ -23,8 +23,8 @@ import android.widget.LinearLayout;
 import android.widget.RelativeLayout;
 import android.widget.TextView;
 
-import com.blankj.utilcode.util.ConvertUtils;
-import com.blankj.utilcode.util.KeyboardUtils;
+import com.easefun.polyv.thirdpart.blankj.utilcode.util.ConvertUtils;
+import com.easefun.polyv.thirdpart.blankj.utilcode.util.KeyboardUtils;
 import com.easefun.polyv.businesssdk.sub.gif.GifImageSpan;
 import com.easefun.polyv.businesssdk.sub.gif.RelativeImageSpan;
 import com.easefun.polyv.cloudclass.chat.PolyvChatManager;
@@ -41,7 +41,6 @@ import com.easefun.polyv.commonui.adapter.viewholder.ClickableViewHolder;
 import com.easefun.polyv.commonui.base.PolyvBaseFragment;
 import com.easefun.polyv.commonui.utils.PolyvFaceManager;
 import com.easefun.polyv.commonui.utils.PolyvToast;
-import com.easefun.polyv.commonui.utils.glide.progress.PolyvMyProgressManager;
 import com.easefun.polyv.commonui.widget.PolyvChatRecyclerView;
 import com.easefun.polyv.foundationsdk.utils.PolyvScreenUtils;
 
@@ -423,7 +422,7 @@ public abstract class PolyvChatBaseFragment extends PolyvBaseFragment {
         }
     }
 
-    private void changeViewLayoutParams(ViewGroup popupLayout) {
+    private void changeViewLayoutParams(final ViewGroup popupLayout) {
         if (popupLayout == null)
             return;
         if (popupLayout.getHeight() == 0) {

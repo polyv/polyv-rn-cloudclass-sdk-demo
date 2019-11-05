@@ -24,7 +24,7 @@ public class PolyvLinkMicParent {
 
     private Context mContext;
 
-    public void initView(@NonNull View linkMicStubView, boolean isParticipant,View teacherInfoLayout){
+    public void initView(@NonNull View linkMicStubView, boolean isParticipant,final View teacherInfoLayout){
         mContext= linkMicStubView.getContext();
         linkMicLayout = linkMicStubView.findViewById(R.id.link_mic_layout);
         linkMicView = linkMicStubView.findViewById(R.id.link_mic_layout_parent);

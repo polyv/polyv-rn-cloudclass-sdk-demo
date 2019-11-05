@@ -28,10 +28,10 @@ import android.widget.LinearLayout;
 import android.widget.RelativeLayout;
 import android.widget.TextView;
 
-import com.blankj.utilcode.util.ConvertUtils;
-import com.blankj.utilcode.util.LogUtils;
-import com.blankj.utilcode.util.ScreenUtils;
-import com.blankj.utilcode.util.Utils;
+import com.easefun.polyv.thirdpart.blankj.utilcode.util.ConvertUtils;
+import com.easefun.polyv.thirdpart.blankj.utilcode.util.LogUtils;
+import com.easefun.polyv.thirdpart.blankj.utilcode.util.ScreenUtils;
+import com.easefun.polyv.thirdpart.blankj.utilcode.util.Utils;
 import com.easefun.polyv.businesssdk.model.video.PolyvBaseVideoParams;
 import com.easefun.polyv.businesssdk.model.video.PolyvCloudClassVideoParams;
 import com.easefun.polyv.businesssdk.model.video.PolyvPlaybackVideoParams;
@@ -63,12 +63,13 @@ import com.easefun.polyv.cloudclassdemo.watch.player.live.PolyvCloudClassVideoHe
 import com.easefun.polyv.cloudclassdemo.watch.player.live.PolyvCloudClassVideoItem;
 import com.easefun.polyv.cloudclassdemo.watch.player.live.widget.PolyvChatPullLayout;
 import com.easefun.polyv.cloudclassdemo.watch.player.live.widget.PolyvTeacherInfoLayout;
+import com.easefun.polyv.cloudclassdemo.watch.player.live.widget.IPolyvLandscapeDanmuSender;
 import com.easefun.polyv.cloudclassdemo.watch.player.playback.PolyvPlaybackVideoHelper;
 import com.easefun.polyv.cloudclassdemo.watch.player.playback.PolyvPlaybackVideoItem;
 import com.easefun.polyv.commonui.base.PolyvBaseActivity;
 import com.easefun.polyv.commonui.player.ppt.PolyvPPTItem;
+import com.easefun.polyv.commonui.player.widget.PolyvSlideSwitchView;
 import com.easefun.polyv.commonui.utils.PolyvChatEventBus;
-import com.easefun.polyv.commonui.utils.glide.progress.PolyvDpUtils;
 import com.easefun.polyv.commonui.widget.PolyvAnswerView;
 import com.easefun.polyv.commonui.widget.PolyvTouchContainerView;
 import com.easefun.polyv.commonui.widget.badgeview.DisplayUtil;
@@ -127,6 +128,8 @@ public class PolyvCloudClassHomeActivity extends PolyvBaseActivity
     //直播与点播辅助类
     private PolyvCloudClassVideoHelper livePlayerHelper;
     private PolyvPlaybackVideoHelper playbackVideoHelper;
+
+    private PolyvCloudClassVideoItem cloudClassVideoItem;
 
     private String userId, channelId, videoId;
 
@@ -234,11 +237,6 @@ public class PolyvCloudClassHomeActivity extends PolyvBaseActivity
         }
 
         initialParams();
-
-        //如果用户被踢，则不初始化
-        if (checkKickTips(channelId)) {
-            return;
-        }
 
         setContentView(R.layout.polyv_activity_cloudclass_home);
 
@@ -399,10 +397,6 @@ public class PolyvCloudClassHomeActivity extends PolyvBaseActivity
         if (playMode == PolyvPlayOption.PLAYMODE_VOD) {
             return;
         }
-        if (playMode == PLAYMODE_LIVE) {
-            PolyvLinkMicWrapper.getInstance().init(Utils.getApp());
-            PolyvLinkMicWrapper.getInstance().intialConfig(channelId);
-        }
 
         linkMicParent  = new PolyvLinkMicParent();
         if (isNormalLive) {
@@ -424,7 +418,7 @@ public class PolyvCloudClassHomeActivity extends PolyvBaseActivity
         chatEditContainer = findViewById(R.id.chat_edit_container);
         chatTopSelectLayout = findViewById(R.id.chat_top_select_layout);
         //由于聊天tab默认隐藏，这里使用布局里定义的高度
-        chatTopSelectLayoutHeight = PolyvDpUtils.dp2px(this, 48);
+        chatTopSelectLayoutHeight = ConvertUtils.dp2px(48);
         chatContainerLayout = findViewById(R.id.chat_container_layout);
         chatViewPager = findViewById(R.id.chat_viewpager);
 
@@ -708,13 +702,16 @@ public class PolyvCloudClassHomeActivity extends PolyvBaseActivity
     }
 
     private void initialLiveVideo() {
-        PolyvCloudClassVideoItem cloudClassVideoItem = new PolyvCloudClassVideoItem(this);
-        cloudClassVideoItem.setOnSendDanmuListener((danmuMessage)->{
-            chatGroupFragment.sendChatMessageByDanmu(danmuMessage);
+        cloudClassVideoItem = new PolyvCloudClassVideoItem(this);
+        cloudClassVideoItem.setOnSendDanmuListener(new IPolyvLandscapeDanmuSender.OnSendDanmuListener() {
+            @Override
+            public void onSendDanmu(String danmuMessage) {
+                chatGroupFragment.sendChatMessageByDanmu(danmuMessage);
+            }
         });
 
         livePlayerHelper = new PolyvCloudClassVideoHelper(cloudClassVideoItem,
-                isNormalLive ? null : new PolyvPPTItem<PolyvCloudClassMediaController>(this), chatManager);
+                isNormalLive ? null : new PolyvPPTItem<PolyvCloudClassMediaController>(this), chatManager,channelId);
         livePlayerHelper.addVideoPlayer(playerContainer);
         livePlayerHelper.initConfig(isNormalLive);
         livePlayerHelper.addPPT(videoPptContainer);
@@ -779,7 +776,7 @@ public class PolyvCloudClassHomeActivity extends PolyvBaseActivity
 
     // <editor-fold defaultstate="collapsed" desc="动画">
 
-    private void downChatLayout(View animationView) {
+    private void downChatLayout(final View animationView) {
         if(isChatBottom){
             return;
         }
@@ -821,7 +818,7 @@ public class PolyvCloudClassHomeActivity extends PolyvBaseActivity
 
     }
 
-    private void upChatLayout(View animationView) {
+    private void upChatLayout(final View animationView) {
         if(!isChatBottom){
             return;
         }
@@ -894,6 +891,14 @@ public class PolyvCloudClassHomeActivity extends PolyvBaseActivity
                 .subscribe(new Consumer<PolyvLiveClassDetailVO>() {
                     @Override
                     public void accept(PolyvLiveClassDetailVO polyvLiveClassDetailVO) throws Exception {
+                        boolean isLive=polyvLiveClassDetailVO.getData().getWatchStatus().equals("live");
+                        if (!isLive){
+                            Object startTime=polyvLiveClassDetailVO.getData().getStartTime();
+                            //startTime==null表示没设置直播开始时间
+                            if (startTime!=null&&cloudClassVideoItem!=null){
+                                cloudClassVideoItem.startLiveTimeCountDown(startTime.toString());
+                            }
+                        }
 
                         for (PolyvLiveClassDetailVO.DataBean.ChannelMenusBean channelMenusBean : polyvLiveClassDetailVO.getData().getChannelMenus()) {
                             if (PolyvLiveClassDetailVO.MENUTYPE_DESC.equals(channelMenusBean.getMenuType())) {

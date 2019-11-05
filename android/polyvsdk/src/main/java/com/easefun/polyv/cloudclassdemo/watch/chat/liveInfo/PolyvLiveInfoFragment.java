@@ -13,14 +13,15 @@ import android.widget.ImageView;
 import android.widget.RelativeLayout;
 import android.widget.TextView;
 
-import com.bumptech.glide.Glide;
-
 import com.easefun.polyv.cloudclass.model.PolyvLiveClassDetailVO;
 import com.easefun.polyv.cloudclassdemo.R;
+import com.easefun.polyv.commonui.utils.imageloader.PolyvImageLoader;
 import com.easefun.polyv.foundationsdk.config.PolyvPlayOption;
 import com.easefun.polyv.foundationsdk.rx.PolyvRxBus;
 
 import io.reactivex.disposables.CompositeDisposable;
+import io.reactivex.functions.Consumer;
+
 
 public class PolyvLiveInfoFragment extends Fragment {
     private boolean isInitialized;
@@ -58,7 +59,8 @@ public class PolyvLiveInfoFragment extends Fragment {
         tv_title.setText(classDetailEntity.getData().getName());
 
         final ImageView iv_livecover = (ImageView) view.findViewById(R.id.iv_livecover);
-        Glide.with(this).load(classDetailEntity.getData().getCoverImage()).into(iv_livecover);
+        PolyvImageLoader.getInstance()
+                .loadImage(getContext(), classDetailEntity.getData().getCoverImage(), iv_livecover);
 
         TextView tv_publisher = (TextView) view.findViewById(R.id.tv_publisher);
         tv_publisher.setText(TextUtils.isEmpty(classDetailEntity.getData().getPublisher()) ? "主持人" : classDetailEntity.getData().getPublisher());
@@ -70,9 +72,9 @@ public class PolyvLiveInfoFragment extends Fragment {
         tv_likes.setText(classDetailEntity.getData().getLikes() + "");
 
         TextView tv_starttime = (TextView) view.findViewById(R.id.tv_starttime);
-        tv_starttime.setText("直播时间：" + ((classDetailEntity.getData().getStartTime()==null) ? "无" : classDetailEntity.getData().getStartTime()));
+        tv_starttime.setText("直播时间：" + ((classDetailEntity.getData().getStartTime() == null) ? "无" : classDetailEntity.getData().getStartTime()));
 
-        TextView tv_status = (TextView) view.findViewById(R.id.tv_status);
+        final TextView tv_status = (TextView) view.findViewById(R.id.tv_status);
         if (playMode == PolyvPlayOption.PLAYMODE_VOD) {
             tv_status.setVisibility(View.GONE);
         } else {
@@ -81,13 +83,19 @@ public class PolyvLiveInfoFragment extends Fragment {
 
             compositeDisposable.add(PolyvRxBus.get()
                     .toObservable(PolyvLiveClassDetailVO.DataBean.class)
-                    .subscribe(dataBean -> {
-                        updateWatchStatus(tv_status, dataBean.getWatchStatus());
+                    .subscribe(new Consumer<PolyvLiveClassDetailVO.DataBean>() {
+                        @Override
+                        public void accept(PolyvLiveClassDetailVO.DataBean dataBean) throws Exception {
+                            PolyvLiveInfoFragment.this.updateWatchStatus(tv_status, dataBean.getWatchStatus());
+                        }
                     }));
         }
 
         PolyvLiveClassDetailVO.DataBean.ChannelMenusBean channelMenusBean = (PolyvLiveClassDetailVO.DataBean.ChannelMenusBean) getArguments().getSerializable("classDetailItem");
         String content = channelMenusBean.getContent();
+        if (TextUtils.isEmpty(content)){
+            return;
+        }
         String style = "style=\" width:100%;\"";
         content = content.replaceAll("img src=\"//", "img src=\\\"http://");
         content = content.replace("<img ", "<img " + style + " ");
@@ -155,7 +163,6 @@ public class PolyvLiveInfoFragment extends Fragment {
         super.onResume();
         if (wv_desc != null) {
             wv_desc.onResume();
-            wv_desc.resumeTimers();
         }
     }
 
@@ -164,7 +171,6 @@ public class PolyvLiveInfoFragment extends Fragment {
         super.onPause();
         if (wv_desc != null) {
             wv_desc.onPause();
-            wv_desc.pauseTimers();
         }
     }
 

@@ -19,7 +19,6 @@ import android.widget.ImageView;
 import android.widget.LinearLayout;
 import android.widget.Toast;
 
-import com.blankj.utilcode.util.ConvertUtils;
 import com.easefun.polyv.businesssdk.sub.gif.RelativeImageSpan;
 import com.easefun.polyv.cloudclass.chat.PolyvChatManager;
 import com.easefun.polyv.cloudclass.chat.PolyvConnectStatusListener;
@@ -33,6 +32,7 @@ import com.easefun.polyv.cloudclass.chat.event.PolyvGongGaoEvent;
 import com.easefun.polyv.cloudclass.chat.event.PolyvKickEvent;
 import com.easefun.polyv.cloudclass.chat.event.PolyvLikesEvent;
 import com.easefun.polyv.cloudclass.chat.event.PolyvLoginEvent;
+import com.easefun.polyv.cloudclass.chat.event.PolyvLoginRefuseEvent;
 import com.easefun.polyv.cloudclass.chat.event.PolyvRemoveContentEvent;
 import com.easefun.polyv.cloudclass.chat.event.PolyvRemoveHistoryEvent;
 import com.easefun.polyv.cloudclass.chat.event.PolyvSpeakEvent;
@@ -63,6 +63,7 @@ import com.easefun.polyv.foundationsdk.permission.PolyvPermissionManager;
 import com.easefun.polyv.foundationsdk.rx.PolyvRxBaseTransformer;
 import com.easefun.polyv.foundationsdk.rx.PolyvRxBus;
 import com.easefun.polyv.foundationsdk.utils.PolyvSDCardUtils;
+import com.easefun.polyv.thirdpart.blankj.utilcode.util.ConvertUtils;
 
 import org.json.JSONArray;
 import org.json.JSONObject;
@@ -288,10 +289,13 @@ public class PolyvChatGroupFragment extends PolyvChatBaseFragment {
             }
         });
         openBulletinButton=findViewById(R.id.open_bulletin_button);
-        openBulletinButton.setOnClickListener(v -> {
-            //用Bus发送消息到AnswerView显示公告
-            PolyvRxBus.get().post(new PolyvAnswerView.BUS_EVENT(PolyvAnswerView.BUS_EVENT.TYPE_SHOW_BULLETIN));
-            hidePopupLayout(more, moreLayout);
+        openBulletinButton.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View v) {
+                //用Bus发送消息到AnswerView显示公告
+                PolyvRxBus.get().post(new PolyvAnswerView.BUS_EVENT(PolyvAnswerView.BUS_EVENT.TYPE_SHOW_BULLETIN));
+                PolyvChatGroupFragment.this.hidePopupLayout(more, moreLayout);
+            }
         });
         //重发图片的按钮监听
         chatListAdapter.setOnResendMessageViewClickListener(new PolyvChatListAdapter.OnResendMessageViewClickListener() {
@@ -921,9 +925,23 @@ public class PolyvChatGroupFragment extends PolyvChatBaseFragment {
                                         @Override
                                         public void run() {
                                             if (chatManager.userId.equals(kickEvent.getUser().getUserId())) {
-                                                PolyvBaseActivity.setKickValue(kickEvent.getChannelId(), true);
-                                                PolyvBaseActivity.checkKickTips(getActivity(), kickEvent.getChannelId(), "您已被管理员踢出聊天室！");
+                                                PolyvBaseActivity.showKickTips(getActivity(), "您已被管理员踢出聊天室！");
                                             }
+                                        }
+                                    }));
+                                }
+                                break;
+                            //被踢后，登录聊天室会回调(用户被踢后不能再登录聊天室，可以在后端取消踢出后恢复)
+                            case PolyvChatManager.EVENT_LOGIN_REFUSE:
+                                PolyvLoginRefuseEvent loginRefuseEvent = PolyvEventHelper.getEventObject(PolyvLoginRefuseEvent.class, message, event);
+                                if (loginRefuseEvent != null) {
+                                    disposables.add(AndroidSchedulers.mainThread().createWorker().schedule(new Runnable() {
+                                        @Override
+                                        public void run() {
+                                            //收到该事件需要退出登录，否则会一直重连
+                                            chatManager.disconnect();
+                                            bgStatus.hide();
+                                            PolyvBaseActivity.showKickTips(getActivity(), "您已被管理员踢出聊天室！");
                                         }
                                     }));
                                 }

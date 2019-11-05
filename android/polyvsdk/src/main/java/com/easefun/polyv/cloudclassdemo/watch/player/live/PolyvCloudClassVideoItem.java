@@ -1,12 +1,14 @@
 package com.easefun.polyv.cloudclassdemo.watch.player.live;
 
 import android.content.Context;
-import android.graphics.Bitmap;
 import android.content.res.Configuration;
+import android.os.CountDownTimer;
+import android.graphics.Bitmap;
 import android.support.annotation.NonNull;
 import android.support.annotation.Nullable;
 import android.support.v4.app.FragmentTransaction;
 import android.support.v7.app.AppCompatActivity;
+import android.text.TextUtils;
 import android.util.AttributeSet;
 import android.view.View;
 import android.widget.FrameLayout;
@@ -16,9 +18,10 @@ import android.widget.RelativeLayout;
 import android.widget.TextView;
 import android.widget.Toast;
 
-import com.blankj.utilcode.util.ScreenUtils;
-import com.blankj.utilcode.util.ToastUtils;
-import com.bumptech.glide.Glide;
+import com.easefun.polyv.thirdpart.blankj.utilcode.util.TimeUtils;
+import com.easefun.polyv.thirdpart.blankj.utilcode.util.ScreenUtils;
+import com.easefun.polyv.thirdpart.blankj.utilcode.util.ToastUtils;
+import com.easefun.polyv.businesssdk.api.auxiliary.IPolyvAuxiliaryVideoViewListenerEvent;
 import com.easefun.polyv.businesssdk.api.auxiliary.PolyvAuxiliaryVideoview;
 import com.easefun.polyv.businesssdk.api.common.player.PolyvPlayError;
 import com.easefun.polyv.businesssdk.api.common.player.listener.IPolyvVideoViewListenerEvent;
@@ -44,13 +47,19 @@ import com.easefun.polyv.cloudclassdemo.watch.player.live.widget.PolyvLandscapeD
 import com.easefun.polyv.commonui.player.IPolyvVideoItem;
 import com.easefun.polyv.commonui.player.ppt.PolyvPPTItem;
 import com.easefun.polyv.commonui.player.widget.PolyvLightTipsView;
+import com.easefun.polyv.commonui.player.widget.PolyvLoadingLayout;
 import com.easefun.polyv.commonui.player.widget.PolyvVolumeTipsView;
+import com.easefun.polyv.commonui.utils.imageloader.PolyvImageLoader;
 import com.easefun.polyv.foundationsdk.log.PolyvCommonLog;
 import com.easefun.polyv.foundationsdk.rx.PolyvRxBus;
 import com.easefun.polyv.foundationsdk.utils.PolyvControlUtils;
 import com.easefun.polyv.foundationsdk.utils.PolyvGsonUtil;
 import com.easefun.polyv.foundationsdk.utils.PolyvScreenUtils;
 import com.easefun.polyv.linkmic.PolyvLinkMicWrapper;
+
+import java.text.DateFormat;
+import java.text.SimpleDateFormat;
+import java.util.Locale;
 
 import io.reactivex.disposables.Disposable;
 import io.reactivex.functions.Consumer;
@@ -62,6 +71,7 @@ import static com.easefun.polyv.cloudclass.model.PolyvLiveClassDetailVO.LiveStat
 import static com.easefun.polyv.cloudclass.model.PolyvLiveClassDetailVO.LiveStatus.LIVE_NO_STREAM;
 import static com.easefun.polyv.cloudclass.model.PolyvLiveClassDetailVO.LiveStatus.LIVE_OPEN_PPT;
 import static com.easefun.polyv.cloudclass.model.PolyvLiveClassDetailVO.LiveStatus.LIVE_START;
+
 
 /**
  * @author df
@@ -80,18 +90,27 @@ public class PolyvCloudClassVideoItem extends FrameLayout
     private PolyvVolumeTipsView tipsviewVolume;
     //手势滑动进度
     private RelativeLayout rlTop;
-    private ProgressBar loadingview;
+    private PolyvLoadingLayout loadingview;
     private TextView preparingview;
     private View noStream;
     private View rootView;
     private ImageView subBackLand;
     private FrameLayout flSubBackAndGradient;
     private FrameLayout audioModeLayoutRoot;
+
+    //直播倒计时View
+    private TextView tvStartTimeCountDown;
+
     //截图，用于刷新直播的时候防止黑屏
     private ImageView ivScreenshot;
 
     //只听音频View
     private IPolyvCloudClassAudioModeView audioModeView;
+
+    //开始时间倒计时器
+    private CountDownTimer startTimeCountDown;
+    //直播开始时间
+    private String liveStartTime;
 
 
     /**
@@ -185,7 +204,12 @@ public class PolyvCloudClassVideoItem extends FrameLayout
 
         subBackLand.setOnClickListener(this);
         subVideoview.setOnGestureClickListener(onGestureClickListener);
-        subVideoview.setOnSubVideoViewLoadImage((imageUrl, imageView) -> Glide.with(this).load(imageUrl).into(imageView));
+        subVideoview.setOnSubVideoViewLoadImage(new IPolyvAuxiliaryVideoViewListenerEvent.IPolyvOnSubVideoViewLoadImage() {
+            @Override
+            public void onLoad(String imageUrl, ImageView imageView) {
+                PolyvImageLoader.getInstance().loadImage(getContext(), imageUrl, imageView);
+            }
+        });
     }
 
 
@@ -210,6 +234,7 @@ public class PolyvCloudClassVideoItem extends FrameLayout
         noStream = findViewById(R.id.no_stream);
         audioModeLayoutRoot = findViewById(R.id.fl_audio_mode_layout_root);
         marqueeView = findViewById(R.id.polyv_marquee_view);
+        tvStartTimeCountDown = findViewById(R.id.tv_start_time_count_down);
 
         FragmentTransaction fragmentTransaction = context.getSupportFragmentManager().beginTransaction();
         danmuFragment = new PolyvDanmuFragment();
@@ -218,17 +243,23 @@ public class PolyvCloudClassVideoItem extends FrameLayout
         landscapeDanmuSender = new PolyvLandscapeDanmuSendPanel(context, this);
 
         controller = findViewById(R.id.controller);
-        controller.setOnClickOpenStartSendDanmuListener(() -> {
-            controller.hide();
-            landscapeDanmuSender.openDanmuSender();
+        controller.setOnClickOpenStartSendDanmuListener(new PolyvCloudClassMediaController.OnClickOpenStartSendDanmuListener() {
+            @Override
+            public void onStartSendDanmu() {
+                controller.hide();
+                landscapeDanmuSender.openDanmuSender();
+            }
         });
         controller.setDanmuFragment(danmuFragment);
 
         //只听音频View
         PolyvCloudClassAudioModeView audioViewImpl = new PolyvCloudClassAudioModeView(getContext());
-        audioViewImpl.setOnChangeVideoModeListener(() -> {
-            polyvCloudClassVideoView.changeMediaPlayMode(PolyvMediaPlayMode.MODE_VIDEO);
-            controller.changeAudioOrVideoMode(PolyvMediaPlayMode.MODE_VIDEO);
+        audioViewImpl.setOnChangeVideoModeListener(new PolyvCloudClassAudioModeView.OnChangeVideoModeListener() {
+            @Override
+            public void onClickPlayVideo() {
+                polyvCloudClassVideoView.changeMediaPlayMode(PolyvMediaPlayMode.MODE_VIDEO);
+                controller.changeAudioOrVideoMode(PolyvMediaPlayMode.MODE_VIDEO);
+            }
         });
         audioModeView = audioViewImpl;
         audioModeLayoutRoot.addView(audioModeView.getRoot(), LayoutParams.MATCH_PARENT, LayoutParams.MATCH_PARENT);
@@ -243,6 +274,7 @@ public class PolyvCloudClassVideoItem extends FrameLayout
         polyvCloudClassVideoView.setMediaController(controller);
         polyvCloudClassVideoView.setNoStreamIndicator(noStream);
         polyvCloudClassVideoView.setPlayerBufferingIndicator(loadingview);
+        loadingview.bindVideoView(polyvCloudClassVideoView);
         polyvCloudClassVideoView.setSubVideoView(subVideoview);
         // 设置跑马灯
         polyvCloudClassVideoView.setMarqueeView(marqueeView, marqueeItem = new PolyvMarqueeItem());
@@ -289,6 +321,8 @@ public class PolyvCloudClassVideoItem extends FrameLayout
                 sendVideoStartMessage();
 
                 controller.handsUpAuto();
+
+                stopLiveCountDown();
             }
 
             @Override
@@ -435,19 +469,32 @@ public class PolyvCloudClassVideoItem extends FrameLayout
                 PolyvRxBus.get().post(dataBean);
 
                 PolyvLinkMicWrapper.getInstance().leaveChannel();
+
+                startLiveTimeCountDown(liveStartTime);
             }
         });
-        polyvCloudClassVideoView.setOnGestureClickListener((start, end) -> {
-            //如果当前没有直播，才会将单击事件传递，并显示没有直播时的按钮。
-            if (!polyvCloudClassVideoView.isOnline()) {
-                onGestureClickListener.callback(start, end);
+        polyvCloudClassVideoView.setOnGestureClickListener(new IPolyvVideoViewListenerEvent.OnGestureClickListener() {
+            @Override
+            public void callback(boolean start, boolean end) {
+                //如果当前没有直播，才会将单击事件传递，并显示没有直播时的按钮。
+                if (!polyvCloudClassVideoView.isOnline()) {
+                    onGestureClickListener.callback(start, end);
+                }
             }
         });
 
-        polyvCloudClassVideoView.setOnDanmuServerOpenListener(open -> controller.onServerDanmuOpen(open));
+        polyvCloudClassVideoView.setOnDanmuServerOpenListener(new IPolyvCloudClassListenerEvent.OnDanmuServerOpenListener() {
+            @Override
+            public void onDanmuServerOpenListener(boolean isServerDanmuOpen) {
+                controller.onServerDanmuOpen(isServerDanmuOpen);
+            }
+        });
 
-        polyvCloudClassVideoView.setOnLinesChangedListener(pos ->{
-            controller.updateMoreLayout(pos);
+        polyvCloudClassVideoView.setOnLinesChangedListener(new IPolyvCloudClassListenerEvent.OnLinesChangedListener() {
+            @Override
+            public void OnLinesChanged(int pos) {
+                controller.updateMoreLayout(pos);
+            }
         });
     }
 
@@ -477,6 +524,7 @@ public class PolyvCloudClassVideoItem extends FrameLayout
             noStream.setVisibility(VISIBLE);
         }
     }
+
 
     @Override
     public View getView() {
@@ -542,8 +590,12 @@ public class PolyvCloudClassVideoItem extends FrameLayout
         }
 
         if (danmuFragment != null) {
-            danmuFragment.onDestroy();
+            danmuFragment.release();
             danmuFragment = null;
+        }
+
+        if (landscapeDanmuSender != null) {
+            landscapeDanmuSender.dismiss();
         }
     }
 
@@ -571,6 +623,76 @@ public class PolyvCloudClassVideoItem extends FrameLayout
         if (danmuFragment != null) {
             danmuFragment.sendDanmaku(message);
         }
+    }
+
+    //开始直播倒计时
+    public void startLiveTimeCountDown(String startTime) {
+        this.liveStartTime = startTime;
+        //2019/08/01 12:22:00
+
+        if (TextUtils.isEmpty(startTime)) {
+            tvStartTimeCountDown.setVisibility(View.GONE);
+            return;
+        }
+        tvStartTimeCountDown.setVisibility(View.VISIBLE);
+
+        //解析时间
+        DateFormat dateFormat = new SimpleDateFormat("yyyy/MM/dd HH:mm:ss", Locale.getDefault());
+        long startTimeMillis = TimeUtils.string2Millis(startTime, dateFormat);
+        long timeSpanMillis = startTimeMillis - System.currentTimeMillis();
+
+        //初始化计时器
+        startTimeCountDown = new CountDownTimer(timeSpanMillis, 1000) {
+            @Override
+            public void onTick(long millisUntilFinished) {
+                millisUntilFinished = millisUntilFinished / 1000;
+                long days = millisUntilFinished / (60 * 60 * 24);
+                long hours = (millisUntilFinished % (60 * 60 * 24)) / (60 * 60);
+                long minutes = (millisUntilFinished % (60 * 60)) / 60;
+                long seconds = millisUntilFinished % 60;
+
+                String dayString=zeroFill(days);
+                String hourString=zeroFill(hours);
+                String minuteString=zeroFill(minutes);
+                String secondString=zeroFill(seconds);
+
+                String timeText;
+                if (days > 0) {
+                    timeText = dayString + "天" + hourString + "小时" + minuteString + "分钟" + secondString + "秒";
+                } else if (hours > 0) {
+                    timeText = hourString + "小时" + minuteString + "分钟" + secondString + "秒";
+                } else if (minutes > 0) {
+                    timeText = minuteString + "分钟" + secondString + "秒";
+                } else {
+                    timeText = secondString + "秒";
+                }
+                timeText = "倒计时：" + timeText;
+                tvStartTimeCountDown.setText(timeText);
+            }
+
+            @Override
+            public void onFinish() {
+                tvStartTimeCountDown.setVisibility(View.GONE);
+            }
+
+            private String zeroFill(long input){
+                //三位数的就直接显示三位数了
+                if (input>99){
+                    return String.valueOf(input);
+                }
+                //二位数的就补零
+                String format="%02d";
+                return String.format(Locale.getDefault(),format,input);
+            }
+        };
+        startTimeCountDown.start();
+    }
+    //停止直播倒计时
+    private void stopLiveCountDown(){
+        if (startTimeCountDown!=null){
+            startTimeCountDown.cancel();
+        }
+        tvStartTimeCountDown.setVisibility(GONE);
     }
 
     private void hideScreenShotView() {

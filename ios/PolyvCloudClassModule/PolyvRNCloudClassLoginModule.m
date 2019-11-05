@@ -137,7 +137,9 @@ RCT_EXPORT_METHOD(
 //            // 抽奖功能必须固定唯一的 nickName 和 userId，如果忘了填写上次的中奖信息，有固定的 userId 还会再次弹出相关填写页面
 //            liveVC.nickName = @"iOS user"; // 设置登录聊天室的用户名
 //            liveVC.avatarUrl = @"https://"; // 设置自定义聊天室用户头像地址
-            [viewController presentViewController:liveVC animated:YES completion:nil];
+              liveVC.modalPresentationStyle = UIModalPresentationFullScreen;
+              [viewController presentViewController:liveVC animated:YES completion:nil];
+
             
             resolve(@[@(PolyvCloudClassError_Success)]);
             
@@ -155,6 +157,7 @@ RCT_EXPORT_METHOD(
 //            // 抽奖功能必须固定唯一的 nickName 和 userId，如果忘了填写上次的中奖信息，有固定的 userId 还会再次弹出相关填写页面
 //            liveVC.nickName = @"iOS user"; // 设置登录聊天室的用户名
 //            liveVC.avatarUrl = @"https://"; // 设置自定义聊天室用户头像地址
+            liveVC.modalPresentationStyle = UIModalPresentationFullScreen;
             [viewController presentViewController:liveVC animated:YES completion:nil];
             
             NSLog(@"频道菜单获取失败！%@",error);
