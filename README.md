@@ -12,14 +12,18 @@ Android 4.1.0 (API 16) 以上 或 iOS 9.0 以上
 ### 1.2 接入条件
 
 - 了解 ReactNative 技术；
-
 - 搭建好运行 React Native 的相关环境；
-
 - 准备在使用 React Native 技术开发的项目中接入云课堂功能；
-
 - 在[保利威视频云平台](http://www.polyv.net/)注册账号，并开通相关服务。
 
-  
+### 1.3 版本功能
+
+RN 版本是基于原生 demo + sdk 开发的，iOS 与 android 对应版本，及 SDK 版本更新日志链接如下：
+
+- iOS SDK 对应版本为 v0.9.0，[版本更新日志](https://github.com/polyv/polyv-ios-cloudClass-sdk-demo/releases)
+- android SDK 对应版本为 v0.8.0，[版本更新日志](https://github.com/polyv/polyv-android-cloudClass-sdk-demo/releases)
+
+
 
 ## 2. 快速开始
 
