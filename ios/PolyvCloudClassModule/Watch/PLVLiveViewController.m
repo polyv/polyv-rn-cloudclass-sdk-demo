@@ -156,19 +156,19 @@
     
     // 若需要 [加载静态离线页面]，请解开2处注释代码
     // 1_[加载静态离线页面]
-//  NSString *basePath = [NSString stringWithFormat:@"%@/dist", [[NSBundle mainBundle] bundlePath]];
-//  NSURL *baseURL = [NSURL fileURLWithPath:basePath isDirectory:YES];
-//  NSString *htmlPath = [NSString stringWithFormat:@"%@/index.html", basePath];
-//  NSError * htmlError;
-//  NSString *htmlString = [NSString stringWithContentsOfFile:htmlPath encoding:NSUTF8StringEncoding error:&htmlError];
-//  if (htmlError) { NSLog(@"[加载静态离线页面] 错误 Error - %@",htmlError); }
+  NSString *basePath = [NSString stringWithFormat:@"%@/dist", [[NSBundle mainBundle] bundlePath]];
+  NSURL *baseURL = [NSURL fileURLWithPath:basePath isDirectory:YES];
+  NSString *htmlPath = [NSString stringWithFormat:@"%@/index.html", basePath];
+  NSError * htmlError;
+  NSString *htmlString = [NSString stringWithContentsOfFile:htmlPath encoding:NSUTF8StringEncoding error:&htmlError];
+  if (htmlError) { NSLog(@"[加载静态离线页面] 错误 Error - %@",htmlError); }
     
     self.triviaCardVC = [[PLVTriviaCardViewController alloc] init];
     self.triviaCardVC.delegate = self;
     
     // 2_[加载静态离线页面]
-// self.triviaCardVC.localHtml = htmlString;
-// self.triviaCardVC.baseURL = baseURL;
+ self.triviaCardVC.localHtml = htmlString;
+ self.triviaCardVC.baseURL = baseURL;
     
     self.triviaCardVC.view.frame = self.view.bounds;
     self.triviaCardVC.view.autoresizingMask = UIViewAutoresizingFlexibleWidth | UIViewAutoresizingFlexibleHeight;
