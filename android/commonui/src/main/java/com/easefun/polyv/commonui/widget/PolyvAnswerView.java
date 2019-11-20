@@ -69,7 +69,7 @@ public class PolyvAnswerView extends FrameLayout {
     private static final String TAG = "PolyvAnswerView";
 
     //为true加载web url资源，为false加载本地url资源
-    private static final boolean LOAD_WEB_URL = true;
+    private static final boolean LOAD_WEB_URL = false;
 
     private PolyvAnswerWebView answerWebView;
     private ViewGroup answerContainer;
