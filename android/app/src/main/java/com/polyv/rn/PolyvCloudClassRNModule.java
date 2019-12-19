@@ -11,6 +11,7 @@ import com.easefun.polyv.businesssdk.model.video.PolyvPlayBackVO;
 import com.easefun.polyv.businesssdk.service.PolyvLoginManager;
 import com.easefun.polyv.businesssdk.vodplayer.PolyvVodSDKClient;
 import com.easefun.polyv.cloudclass.config.PolyvLiveSDKClient;
+import com.easefun.polyv.cloudclass.config.PolyvVClassGlobalConfig;
 import com.easefun.polyv.cloudclass.model.PolyvLiveStatusVO;
 import com.easefun.polyv.cloudclass.net.PolyvApiManager;
 import com.easefun.polyv.cloudclassdemo.watch.PolyvCloudClassHomeActivity;
@@ -89,7 +90,8 @@ public class PolyvCloudClassRNModule extends ReactContextBaseJavaModule {
 
         if (code == PolyvErrorCode.success) {
             PolyvInitManager.init(vodKey, decodeKey, decodeIv, getReactApplicationContext());
-
+            PolyvVClassGlobalConfig.viewerId = viewerId;
+            PolyvVClassGlobalConfig.username = nickName;
             sendSuccessMessage(promise);
         } else {
             sendErrorMessage(promise, code);

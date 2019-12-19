@@ -28,10 +28,6 @@ import android.widget.LinearLayout;
 import android.widget.RelativeLayout;
 import android.widget.TextView;
 
-import com.easefun.polyv.thirdpart.blankj.utilcode.util.ConvertUtils;
-import com.easefun.polyv.thirdpart.blankj.utilcode.util.LogUtils;
-import com.easefun.polyv.thirdpart.blankj.utilcode.util.ScreenUtils;
-import com.easefun.polyv.thirdpart.blankj.utilcode.util.Utils;
 import com.easefun.polyv.businesssdk.model.video.PolyvBaseVideoParams;
 import com.easefun.polyv.businesssdk.model.video.PolyvCloudClassVideoParams;
 import com.easefun.polyv.businesssdk.model.video.PolyvPlaybackVideoParams;
@@ -61,14 +57,13 @@ import com.easefun.polyv.cloudclassdemo.watch.player.PolyvOrientoinListener;
 import com.easefun.polyv.cloudclassdemo.watch.player.live.PolyvCloudClassMediaController;
 import com.easefun.polyv.cloudclassdemo.watch.player.live.PolyvCloudClassVideoHelper;
 import com.easefun.polyv.cloudclassdemo.watch.player.live.PolyvCloudClassVideoItem;
+import com.easefun.polyv.cloudclassdemo.watch.player.live.widget.IPolyvLandscapeDanmuSender;
 import com.easefun.polyv.cloudclassdemo.watch.player.live.widget.PolyvChatPullLayout;
 import com.easefun.polyv.cloudclassdemo.watch.player.live.widget.PolyvTeacherInfoLayout;
-import com.easefun.polyv.cloudclassdemo.watch.player.live.widget.IPolyvLandscapeDanmuSender;
 import com.easefun.polyv.cloudclassdemo.watch.player.playback.PolyvPlaybackVideoHelper;
 import com.easefun.polyv.cloudclassdemo.watch.player.playback.PolyvPlaybackVideoItem;
 import com.easefun.polyv.commonui.base.PolyvBaseActivity;
 import com.easefun.polyv.commonui.player.ppt.PolyvPPTItem;
-import com.easefun.polyv.commonui.player.widget.PolyvSlideSwitchView;
 import com.easefun.polyv.commonui.utils.PolyvChatEventBus;
 import com.easefun.polyv.commonui.widget.PolyvAnswerView;
 import com.easefun.polyv.commonui.widget.PolyvTouchContainerView;
@@ -83,6 +78,9 @@ import com.easefun.polyv.foundationsdk.rx.PolyvRxBus;
 import com.easefun.polyv.foundationsdk.rx.PolyvRxTimer;
 import com.easefun.polyv.foundationsdk.utils.PolyvScreenUtils;
 import com.easefun.polyv.linkmic.PolyvLinkMicWrapper;
+import com.easefun.polyv.thirdpart.blankj.utilcode.util.ConvertUtils;
+import com.easefun.polyv.thirdpart.blankj.utilcode.util.LogUtils;
+import com.easefun.polyv.thirdpart.blankj.utilcode.util.ScreenUtils;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -334,8 +332,10 @@ public class PolyvCloudClassHomeActivity extends PolyvBaseActivity
     // <editor-fold defaultstate="collapsed" desc="初始化">
     private void initialStudentIdAndNickName() {
         if(!PolyvVClassGlobalConfig.IS_VCLASS){
-            viewerId = "" + Build.SERIAL;
-            viewerName = "学员" + viewerId;
+//            viewerId = "" + Build.SERIAL;
+//            viewerName = "学员" + viewerId;
+            viewerId = PolyvVClassGlobalConfig.viewerId;
+            viewerName = PolyvVClassGlobalConfig.username;
         }else {
             //初始化观众id和观众昵称，用于统计数据
             if (isParticipant){
