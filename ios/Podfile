@@ -5,7 +5,7 @@ target 'PolyvRNCloudClassDemo' do
   
   pod 'Masonry', '~> 1.1.0'
   pod 'SDWebImage', '4.4.0'
-  pod 'PolyvCloudClassSDK', '0.9.0'
+  pod 'PolyvCloudClassSDK', '0.14.0'
   
   # 执行 npm install 命令之后，有可能会自动生成下面这两行配置，需要把这两行配置删掉或者注释掉
   # pod 'RNReanimated', :path => '../node_modules/react-native-reanimated'

@@ -120,8 +120,11 @@ RCT_EXPORT_METHOD(
       PLVProgressHUD *hud = [PLVProgressHUD showHUDAddedTo:viewController.view animated:YES];
       [hud.label setText:@"登录中..."];
       
-      [PLVLiveVideoAPI verifyPermissionWithChannelId:channelId.integerValue vid:@"" appId:appId userId:userId appSecret:appSecret completion:^{
-        [PLVLiveVideoAPI liveStatus:channelId completion:^(BOOL liveing, NSString *liveType) {
+      [PLVLiveVideoAPI verifyPermissionWithChannelId:channelId.integerValue vid:@"" appId:appId userId:userId appSecret:appSecret completion:^(NSDictionary * _Nonnull data) {
+        /// 设置聊天室相关的私有服务器的域名
+        [PLVLiveVideoConfig setPrivateDomainWithData:data];
+
+        [PLVLiveVideoAPI liveStatus2:channelId completion:^(NSString *liveType, PLVLiveStreamState liveState) {
           [PLVLiveVideoAPI getChannelMenuInfos:channelId.integerValue completion:^(PLVLiveVideoChannelMenuInfo *channelMenuInfo) {
             
             [hud hideAnimated:YES];
@@ -131,7 +134,7 @@ RCT_EXPORT_METHOD(
             
             PLVLiveViewController *liveVC = [PLVLiveViewController new];
             liveVC.liveType = [@"ppt" isEqualToString:liveType] ? PLVLiveViewControllerTypeCloudClass : PLVLiveViewControllerTypeLive;
-            liveVC.playAD = !liveing;
+            liveVC.liveState = liveState;
             liveVC.channelMenuInfo = channelMenuInfo;
             
 //            // 抽奖功能必须固定唯一的 nickName 和 userId，如果忘了填写上次的中奖信息，有固定的 userId 还会再次弹出相关填写页面
@@ -152,7 +155,7 @@ RCT_EXPORT_METHOD(
             
             PLVLiveViewController *liveVC = [PLVLiveViewController new];
             liveVC.liveType = [@"ppt" isEqualToString:liveType] ? PLVLiveViewControllerTypeCloudClass : PLVLiveViewControllerTypeLive;
-            liveVC.playAD = !liveing;
+            liveVC.liveState = liveState;
             
 //            // 抽奖功能必须固定唯一的 nickName 和 userId，如果忘了填写上次的中奖信息，有固定的 userId 还会再次弹出相关填写页面
             liveVC.nickName = [PLVLiveVideoConfig sharedInstance].param2;//@"iOS user"; // 设置登录聊天室的用户名
@@ -242,7 +245,10 @@ RCT_EXPORT_METHOD(
       PLVProgressHUD *hud = [PLVProgressHUD showHUDAddedTo:viewController.view animated:YES];
       [hud.label setText:@"登录中..."];
       
-      [PLVLiveVideoAPI verifyPermissionWithChannelId:0 vid:vodId appId:appId userId:userId appSecret:@"" completion:^{
+      [PLVLiveVideoAPI verifyPermissionWithChannelId:channelId.integerValue vid:vodId appId:appId userId:userId appSecret:@"" completion:^(NSDictionary * _Nonnull data) {
+      /// 设置聊天室相关的私有服务器的域名
+        [PLVLiveVideoConfig setPrivateDomainWithData:data];
+        
         [PLVLiveVideoAPI getVodType:vodId completion:^(BOOL vodType) {
           [PLVLiveVideoAPI getChannelMenuInfos:channelId.integerValue completion:^(PLVLiveVideoChannelMenuInfo *channelMenuInfo) {
             

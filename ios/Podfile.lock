@@ -1,0 +1,66 @@
+PODS:
+  - AgoraRtcEngine_iOS (2.9.0.102)
+  - Masonry (1.1.0)
+  - PolyvAliHttpDNS (1.7.4):
+    - PolyvAliHttpDNS/AlicloudHttpDNS (= 1.7.4)
+    - PolyvAliHttpDNS/AlicloudUtils (= 1.7.4)
+    - PolyvAliHttpDNS/UTDID (= 1.7.4)
+  - PolyvAliHttpDNS/AlicloudHttpDNS (1.7.4)
+  - PolyvAliHttpDNS/AlicloudUtils (1.7.4)
+  - PolyvAliHttpDNS/UTDID (1.7.4)
+  - PolyvBusinessSDK (0.13.0):
+    - PolyvFoundationSDK (~> 0.11.0)
+  - PolyvCloudClassSDK (0.14.0):
+    - PolyvCloudClassSDK/Core (= 0.14.0)
+    - PolyvCloudClassSDK/Player (= 0.14.0)
+    - PolyvCloudClassSDK/ThirdPart (= 0.14.0)
+  - PolyvCloudClassSDK/Core (0.14.0):
+    - PolyvBusinessSDK (~> 0.13.0)
+  - PolyvCloudClassSDK/Player (0.14.0):
+    - PolyvIJKPlayer (~> 0.6.3)
+  - PolyvCloudClassSDK/ThirdPart (0.14.0):
+    - AgoraRtcEngine_iOS (= 2.9.0.102)
+    - PolyvAliHttpDNS (~> 1.7.3)
+    - Socket.IO-Client-Swift (~> 14.0.0)
+  - PolyvFoundationSDK (0.11.0)
+  - PolyvIJKPlayer (0.6.3)
+  - SDWebImage (4.4.0):
+    - SDWebImage/Core (= 4.4.0)
+  - SDWebImage/Core (4.4.0)
+  - Socket.IO-Client-Swift (14.0.0):
+    - Starscream (~> 3.0.6)
+  - Starscream (3.0.6)
+
+DEPENDENCIES:
+  - Masonry (~> 1.1.0)
+  - PolyvCloudClassSDK (= 0.14.0)
+  - SDWebImage (= 4.4.0)
+
+SPEC REPOS:
+  https://github.com/cocoapods/specs.git:
+    - AgoraRtcEngine_iOS
+    - Masonry
+    - PolyvAliHttpDNS
+    - PolyvBusinessSDK
+    - PolyvCloudClassSDK
+    - PolyvFoundationSDK
+    - PolyvIJKPlayer
+    - SDWebImage
+    - Socket.IO-Client-Swift
+    - Starscream
+
+SPEC CHECKSUMS:
+  AgoraRtcEngine_iOS: 9755a9dcd45ab1d177ece9fe15dea23124d63d50
+  Masonry: 678fab65091a9290e40e2832a55e7ab731aad201
+  PolyvAliHttpDNS: 6e7783feba44d25abc4f9584da83f93e7e4ef957
+  PolyvBusinessSDK: 016a5363f7ea64a96b25717f433ab6a884ae3160
+  PolyvCloudClassSDK: 4faaee7e5a074544991ad1687f19decce3dcb63f
+  PolyvFoundationSDK: 5ff64db951623be6f4ae66b770f94a41b1b3356d
+  PolyvIJKPlayer: 5b9dd60ee6f85285bf5f5a6972a687ee574824c4
+  SDWebImage: b534502786e43dde36dfcaee89356fe6df30e203
+  Socket.IO-Client-Swift: 21e6a8a23a7d367d5ddfab6cbbd3c679cf3c25d6
+  Starscream: ef3ece99d765eeccb67de105bfa143f929026cf5
+
+PODFILE CHECKSUM: c8453e6e5eb4e196ee74e7a4069d93f86b2c4d9a
+
+COCOAPODS: 1.7.2
