@@ -14,10 +14,10 @@ import com.easefun.polyv.foundationsdk.log.PolyvCommonLog;
 public class PolyvInitManager {
 
     public static void init(String vodKey, String decodeKey, String decodeIv, Context context){
-        // Normal app init code...
+
         PolyvCommonLog.setDebug(true);
         PolyvLiveSDKClient liveSDKClient = PolyvLiveSDKClient.getInstance();
-        liveSDKClient.initContext(null);
+        liveSDKClient.enableHttpDns(false);
 
         PolyvVodSDKClient client = PolyvVodSDKClient.getInstance();
         //使用SDK加密串来配置

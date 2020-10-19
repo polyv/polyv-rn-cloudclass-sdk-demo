@@ -2,11 +2,14 @@ package com.easefun.polyv.cloudclassdemo.watch.player.live.widget;
 
 import android.animation.Animator;
 import android.animation.ObjectAnimator;
+import android.annotation.SuppressLint;
 import android.content.Context;
 import android.content.res.Configuration;
 import android.support.annotation.NonNull;
 import android.support.annotation.Nullable;
+import android.text.TextUtils;
 import android.util.AttributeSet;
+import android.view.MotionEvent;
 import android.view.View;
 import android.widget.FrameLayout;
 import android.widget.ImageView;
@@ -61,6 +64,14 @@ public class PolyvTeacherInfoLayout extends LinearLayout implements View.OnClick
 
     private boolean linkMicCallAbove;//连麦界面是否在最上面
 
+    //是否第一次收到开启连麦
+    private boolean isFirstTimeReceiveLinkMicOpen = true;
+    //是否第一次收到关闭连麦
+    private boolean isFirstTimeReceiveLinkMicClose = true;
+    //是否还没有点击连麦按钮
+    private boolean hasNotClickLinkMic = true;
+
+
     private CompositeDisposable compositeDisposable = new CompositeDisposable();
 
     private PolyvCloudClassVideoHelper cloudClassVideoHelper;
@@ -88,9 +99,21 @@ public class PolyvTeacherInfoLayout extends LinearLayout implements View.OnClick
     }
 
     // <editor-fold defaultstate="collapsed" desc="初始化">
+    @SuppressLint("ClickableViewAccessibility")
     private void addListener() {
         linkMicBackTeacherInfo.setOnClickListener(this);
         linkMicStatusImg.setOnClickListener(this);
+
+        //防止别的地方设置onClickListener()覆盖了这里设置的（controller里面可能会设置），改用OnTouchListener
+        linkMicStatusImg.setOnTouchListener(new OnTouchListener() {
+            @Override
+            public boolean onTouch(View v, MotionEvent event) {
+                if (event.getAction() == MotionEvent.ACTION_UP) {
+                    hasNotClickLinkMic = false;
+                }
+                return false;
+            }
+        });
     }
 
     private void initView() {
@@ -110,7 +133,7 @@ public class PolyvTeacherInfoLayout extends LinearLayout implements View.OnClick
 
         linkMicStatusImg.setEnabled(false);
 
-        moveLinkMicToright();
+        moveLinkMicToRight();
 
     }
 
@@ -124,32 +147,36 @@ public class PolyvTeacherInfoLayout extends LinearLayout implements View.OnClick
                             @Override
                             public void run() {
                                 String watchStatus = polyvLiveClassDetailVO.getWatchStatus();
-                                PolyvCommonLog.d(TAG,"teacher receive status:"+watchStatus);
+                                PolyvCommonLog.d(TAG, "teacher receive status:" + watchStatus);
                                 if (LIVE_END.equals(watchStatus) || LIVE_NO_STREAM.equals(watchStatus)) {
                                     setVisibility(GONE);
                                 } else if (LIVE_START.equals(watchStatus)) {
                                     setVisibility(VISIBLE);
-                                }  else if (LIVE_OPEN_PPT.equals(watchStatus)) {
+                                } else if (LIVE_OPEN_PPT.equals(watchStatus)) {
                                     showWithPPTStatus(VISIBLE);
-                                }else if (LIVE_N0_PPT.equals(watchStatus)) {
+                                } else if (LIVE_N0_PPT.equals(watchStatus)) {
                                     showWithPPTStatus(GONE);
                                 } else if (LIVE_HIDESUBVIEW.equals(watchStatus)) {
                                     teacherSubView.setVisibility(GONE);
                                     if (!linkMicCallAbove) {
-                                        moveLinkMicToright();
+                                        moveLinkMicToRight();
                                     }
                                 } else if (LIVE_SHOWSUBVIEW.equals(watchStatus)) {
                                     teacherSubView.setVisibility(VISIBLE);
                                     if (!linkMicCallAbove) {
-                                        moveLinkMicToright();
+                                        moveLinkMicToRight();
                                     }
                                 } else if (LIVE_OPENCALLLINKMIC.equals(watchStatus)) {
                                     linkMicStatusImg.setEnabled(true);
                                     linkMicStatus.setText("讲师已开启连线");
+
+                                    handleAutoMoveLinkMicLayoutWhenReceiveBusEvent(true);
                                 } else if (LIVE_CLOSECALLLINKMIC.equals(watchStatus)) {
                                     linkMicStatusImg.setEnabled(false);
                                     linkMicStatus.setText("讲师已关闭连线");
-                                }else if(LOGIN_CHAT_ROOM.equals(watchStatus)){
+
+                                    handleAutoMoveLinkMicLayoutWhenReceiveBusEvent(false);
+                                } else if (LOGIN_CHAT_ROOM.equals(watchStatus)) {
                                     fillTeacherInfo();
                                 }
                             }
@@ -164,31 +191,38 @@ public class PolyvTeacherInfoLayout extends LinearLayout implements View.OnClick
             setVisibility(visible);
             teacherSubView.setVisibility(visible);
             if (!linkMicCallAbove) {
-                moveLinkMicToright();
+                moveLinkMicToRight();
             }
         }
     }
     // </editor-fold>
 
-
     // <editor-fold defaultstate="collapsed" desc="外部调用">
     public void init(@NonNull PolyvCloudClassVideoHelper cloudClassVideoHelper,
-                     @NonNull PolyvTouchContainerView videoPptContainer) {
+                     @NonNull PolyvTouchContainerView videoPptContainer, boolean isParticipant, String rtcType) {
         this.cloudClassVideoHelper = cloudClassVideoHelper;
         cloudClassVideoHelper.bindCallMicView(linkMicStatusImg);
-//        insertTeacherCamera(videoPptContainer);
+
+        if ("urtc".equals(rtcType) || TextUtils.isEmpty(rtcType)) {
+            //当前类型不支持连麦
+            linkMicLayout.setVisibility(INVISIBLE);
+        } else {
+            //当前类型支持连麦
+            linkMicLayout.setVisibility(isParticipant ? INVISIBLE : VISIBLE);
+        }
+
     }
 
     public void fillTeacherInfo() {
-        onlineNumber.setText(PolyvChatManager.getInstance().getOnlineCount()+"人在线");
+        onlineNumber.setText(PolyvChatManager.getInstance().getOnlineCount() + "人在线");
         PolyvTeacherInfo teacherInfo = PolyvDemoClient.getInstance().getTeacher();
-        if(teacherInfo != null){
+        if (teacherInfo != null) {
             teacherNameVertical.setText(teacherInfo.getData().getNick());
-            PolyvImageLoader.getInstance().loadImage(this.getContext(),teacherInfo.getData().getPic(),teacherImg);
+            PolyvImageLoader.getInstance().loadImage(this.getContext(), teacherInfo.getData().getPic(), teacherImg);
         }
     }
 
-    public void onDestroy(){
+    public void onDestroy() {
         if (compositeDisposable != null) {
             compositeDisposable.clear();
             compositeDisposable = null;
@@ -196,7 +230,17 @@ public class PolyvTeacherInfoLayout extends LinearLayout implements View.OnClick
     }
     // </editor-fold>
 
-    private void showOrHideLinkmicLayout(final boolean show) {
+    // <editor-fold defaultstate="collapsed" desc="处理连麦面板左移显示和右移隐藏">
+
+    /**
+     * 显示或隐藏连麦面板。带动画
+     *
+     * @param show true就会把连麦面板左拉显示，false就会把连麦面板右拉隐藏。
+     */
+    private void showOrHideLinkMicLayout(final boolean show) {
+        if (linkMicCallAbove == show) {
+            return;
+        }
         linkMicLayout.post(new Runnable() {
             @Override
             public void run() {
@@ -214,9 +258,9 @@ public class PolyvTeacherInfoLayout extends LinearLayout implements View.OnClick
     }
 
     /**
-     * 移动连麦试图到最最右侧
+     * 隐藏连麦面板，不带动画。
      */
-    private void moveLinkMicToright() {
+    private void moveLinkMicToRight() {
         linkMicCallLayout.setVisibility(INVISIBLE);
         post(new Runnable() {
             @Override
@@ -253,18 +297,53 @@ public class PolyvTeacherInfoLayout extends LinearLayout implements View.OnClick
 
     }
 
+    /**
+     * 当收到讲师开启连麦和关闭连麦的bus event的时候，处理自动显示和隐藏连麦面板。
+     * <p>
+     * 注意：由于连麦的开启和关闭状态既通过socket更新，也通过轮询接口更新，因此该方法
+     * 会被调用多次，那么就通过 {@link #isFirstTimeReceiveLinkMicClose}和{@link #isFirstTimeReceiveLinkMicOpen}
+     * 来过滤掉多余的连麦打开和关闭。
+     *
+     * @param isLinkMicOpen true:连麦打开;false:连麦关闭
+     */
+    private void handleAutoMoveLinkMicLayoutWhenReceiveBusEvent(boolean isLinkMicOpen) {
+        if (isLinkMicOpen) {
+            if (isFirstTimeReceiveLinkMicOpen) {
+                //reset flag
+                isFirstTimeReceiveLinkMicOpen = false;
+                isFirstTimeReceiveLinkMicClose = true;
+                hasNotClickLinkMic = true;
+
+                showOrHideLinkMicLayout(true);
+                linkMicBackTeacherInfo.setSelected(true);
+            }
+        } else {
+            if (isFirstTimeReceiveLinkMicClose) {
+                //reset flag
+                isFirstTimeReceiveLinkMicClose = false;
+                isFirstTimeReceiveLinkMicOpen = true;
+
+                //如果没有点击连麦并且连麦面板还在，就收起连麦面板。
+                if (hasNotClickLinkMic && linkMicCallAbove) {
+                    showOrHideLinkMicLayout(false);
+                    linkMicBackTeacherInfo.setSelected(false);
+                }
+            }
+        }
+    }
+// </editor-fold>
+
+
     @Override
     public void onClick(View v) {
         int id = v.getId();
         if (id == R.id.link_mic_arrow) {
             linkMicBackTeacherInfo.setSelected(!v.isSelected());
-            showOrHideLinkmicLayout(v.isSelected());
-
+            showOrHideLinkMicLayout(v.isSelected());
         } else if (id == R.id.link_mic_status_img) {
             if (cloudClassVideoHelper != null) {
                 cloudClassVideoHelper.requestPermission();
             }
-
         }
     }
 
@@ -273,7 +352,7 @@ public class PolyvTeacherInfoLayout extends LinearLayout implements View.OnClick
     @Override
     protected void onDetachedFromWindow() {
         super.onDetachedFromWindow();
-        if(cloudClassVideoHelper != null){
+        if (cloudClassVideoHelper != null) {
             cloudClassVideoHelper = null;
         }
 
@@ -282,17 +361,12 @@ public class PolyvTeacherInfoLayout extends LinearLayout implements View.OnClick
     @Override
     protected void onConfigurationChanged(Configuration newConfig) {
         super.onConfigurationChanged(newConfig);
-        if(newConfig.orientation == Configuration.ORIENTATION_PORTRAIT){
-            if(!linkMicCallAbove){
-                moveLinkMicToright();
+        if (newConfig.orientation == Configuration.ORIENTATION_PORTRAIT) {
+            if (!linkMicCallAbove) {
+                moveLinkMicToRight();
             }
         }
     }
-
-    public void hideHandsUpLink(boolean isParticipant) {
-        linkMicLayout.setVisibility(isParticipant?INVISIBLE:VISIBLE);
-    }
-
     // </editor-fold>
 
 }

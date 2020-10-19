@@ -9,23 +9,27 @@ import android.view.View;
 import android.view.ViewGroup;
 import android.widget.FrameLayout;
 import android.widget.ImageView;
+import android.widget.LinearLayout;
 import android.widget.RelativeLayout;
 import android.widget.TextView;
 
-import com.easefun.polyv.thirdpart.blankj.utilcode.util.ScreenUtils;
 import com.easefun.polyv.businesssdk.model.link.PolyvJoinInfoEvent;
+import com.easefun.polyv.cloudclass.chat.PolyvChatManager;
+import com.easefun.polyv.cloudclass.chat.PolyvNewMessageListener;
+import com.easefun.polyv.cloudclass.chat.event.PolyvEventHelper;
+import com.easefun.polyv.cloudclass.chat.event.PolyvSendCupEvent;
 import com.easefun.polyv.cloudclassdemo.R;
 import com.easefun.polyv.foundationsdk.log.PolyvCommonLog;
 import com.easefun.polyv.foundationsdk.utils.PolyvAppUtils;
 import com.easefun.polyv.foundationsdk.utils.PolyvScreenUtils;
 import com.easefun.polyv.linkmic.PolyvLinkMicWrapper;
+import com.easefun.polyv.thirdpart.blankj.utilcode.util.ScreenUtils;
+import com.plv.rtc.PLVARTCConstants;
 
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
-
-import io.agora.rtc.video.VideoCanvas;
 
 /**
  * @author df
@@ -112,6 +116,9 @@ public class PolyvLinkMicDataBinder extends IPolyvDataBinder{
 
     protected SurfaceView createSurfaceView() {
         SurfaceView surfaceView = PolyvLinkMicWrapper.getInstance().createRendererView(PolyvAppUtils.getApp());
+        if (surfaceView == null) {
+            return null;
+        }
         surfaceView.setZOrderOnTop(true);
         surfaceView.setZOrderMediaOverlay(true);
         surfaceView.setId(CAMERA_VIEW_ID);
@@ -177,6 +184,11 @@ public class PolyvLinkMicDataBinder extends IPolyvDataBinder{
         holder.itemView.setTag(uid);
         holder.camerLayout.setTag(uid);
         PolyvJoinInfoEvent polyvJoinRequestSEvent = joins.get(uid);
+
+        if (polyvJoinRequestSEvent != null) {
+            holder.setLoginId(polyvJoinRequestSEvent.getLoginId());
+        }
+
 //        holder.camer.setVisibility(uid.equals(myUid) ? View.VISIBLE : View.INVISIBLE);
         if (uid.equals(myUid)) {
             holder.polyvLinkNick.setText("我");
@@ -204,9 +216,17 @@ public class PolyvLinkMicDataBinder extends IPolyvDataBinder{
         if (polyvJoinRequestSEvent != null) {
             surfaceView.setVisibility(polyvJoinRequestSEvent.isMute() ? View.INVISIBLE : View.VISIBLE);
         }
+
+        if (polyvJoinRequestSEvent != null && polyvJoinRequestSEvent.getCupNum() != 0) {
+            holder.cupLayout.setVisibility(View.VISIBLE);
+            holder.cupNumView.setText(polyvJoinRequestSEvent.getCupNum() > 99 ? "99+" : (polyvJoinRequestSEvent.getCupNum() + ""));
+        } else {
+            holder.cupLayout.setVisibility(View.GONE);
+        }
+
         if (isAudio && !uid.equals(teacherId)) {//音频 只显示教师
             surfaceView.setVisibility(View.GONE);
-            holder.cameraLinkMicOff.setVisibility(View.GONE);
+            holder.cameraLinkMicOff.setVisibility   (View.GONE);
             return;
         }
 
@@ -219,15 +239,31 @@ public class PolyvLinkMicDataBinder extends IPolyvDataBinder{
         }else {
             holder.teacherLogo.setVisibility(View.GONE);
         }
-        long longUid = Long.valueOf(uid);
-        if (uid.equals(myUid)) {
-             PolyvLinkMicWrapper.getInstance().setupLocalVideo(surfaceView,
-                    VideoCanvas.RENDER_MODE_FIT, (int) longUid);
-        } else {
-            PolyvLinkMicWrapper.getInstance().setupRemoteVideo(surfaceView,
-                    VideoCanvas.RENDER_MODE_FIT, (int) longUid);
+
+        //处理由于延迟3秒请求连麦列表导致RTC 的mute 事件漏掉处理的情况
+        for (String id : unhandledMutedAudioList) {
+            if (uid.equals(id)){
+                holder.cameraLinkMicOff.setVisibility(View.VISIBLE);
+                unhandledMutedAudioList.remove(id);
+                break;
+            }
+        }
+        for (String id: unhandledMutedVideoList){
+            if (uid.equals(id)){
+                surfaceView.setVisibility(View.INVISIBLE);
+                unhandledMutedVideoList.remove(id);
+                break;
+            }
         }
 
+        long longUid = Long.valueOf(uid);
+        if (uid.equals(myUid)) {
+            PolyvLinkMicWrapper.getInstance().setupLocalVideo(surfaceView,
+                    PLVARTCConstants.RENDER_MODE_FIT, (int) longUid);
+        } else {
+            PolyvLinkMicWrapper.getInstance().setupRemoteVideo(surfaceView,
+                    PLVARTCConstants.RENDER_MODE_FIT, (int) longUid);
+        }
     }
 
     private void addTeacher(String teacherId, PolyvJoinInfoEvent teacherEvent) {
@@ -253,6 +289,7 @@ public class PolyvLinkMicDataBinder extends IPolyvDataBinder{
     @Override
     public void showMicOffLineView(boolean mute) {
         super.showMicOffLineView(mute);
+        if (ownerMic != null)
         ownerMic.setVisibility(mute?View.VISIBLE:View.INVISIBLE);
     }
 
@@ -330,7 +367,9 @@ public class PolyvLinkMicDataBinder extends IPolyvDataBinder{
         }
 
         int pos = joinInfoEvent.getPos();
-        this.teacherLogoView.setVisibility(View.GONE);
+        if (this.teacherLogoView != null) {
+            this.teacherLogoView.setVisibility(View.GONE);
+        }
         View toTeacherView = parentView.getChildAt(pos);
         View teacherLogoView = toTeacherView.findViewById(R.id.teacher_logo);
         if(teacherLogoView == null){
@@ -344,6 +383,9 @@ public class PolyvLinkMicDataBinder extends IPolyvDataBinder{
 
     public void switchView(String originUid){
         PolyvJoinInfoEvent joinInfoEvent = joins.get(originUid);
+        if (uids.isEmpty()){
+            return;
+        }
         PolyvJoinInfoEvent firstInfo = joins.get(uids.get(0));
         if(joinInfoEvent == null){
             PolyvCommonLog.e(TAG,"no such uid");
@@ -420,7 +462,11 @@ public class PolyvLinkMicDataBinder extends IPolyvDataBinder{
         public ImageView teacherLogo;
         public TextView polyvLinkNick;
         public FrameLayout camerLayout;
+        public LinearLayout cupLayout;
+        public TextView cupNumView;
         public int pos;
+
+        public String loginId;
 
         public PolyvMicHodler(View itemView) {
             super(itemView);
@@ -429,13 +475,42 @@ public class PolyvLinkMicDataBinder extends IPolyvDataBinder{
             teacherLogo = itemView.findViewById(R.id.teacher_logo);
             polyvLinkNick = itemView.findViewById(R.id.polyv_link_nick);
             camerLayout = itemView.findViewById(R.id.polyv_link_mic_camera_layout);
+            cupLayout = itemView.findViewById(R.id.cup_layout);
+            cupNumView = itemView.findViewById(R.id.cup_num_view);
             itemView.setOnClickListener(new View.OnClickListener() {
                 @Override
                 public void onClick(View v) {
                     selectedLinkMicView = camerLayout;
-                    if(itemClicker != null && !isAudio){
+                    if(itemClicker != null ){
                         itemClicker.onClick(v);
                     }
+                }
+            });
+
+            registerSocketEventListener();
+        }
+
+        public void setLoginId(String loginId) {
+            this.loginId = loginId;
+        }
+
+        private void registerSocketEventListener() {
+            PolyvChatManager.getInstance().addNewMessageListener(new PolyvNewMessageListener() {
+                @Override
+                public void onNewMessage(String message, String event) {
+                    if (PolyvChatManager.EVENT_SEND_CUP.equals(event)) {
+                        PolyvSendCupEvent sendCupEvent = PolyvEventHelper.getEventObject(PolyvSendCupEvent.class, message, event);
+                        if (sendCupEvent != null && sendCupEvent.getOwner() != null && sendCupEvent.getOwner().getUserId() != null) {
+                            if (sendCupEvent.getOwner().getUserId().equals(loginId)) {
+                                cupLayout.setVisibility(View.VISIBLE);
+                                cupNumView.setText(sendCupEvent.getOwner().getNum() > 99 ? "99+" : (sendCupEvent.getOwner().getNum() + ""));
+                            }
+                        }
+                    }
+                }
+
+                @Override
+                public void onDestroy() {
                 }
             });
         }

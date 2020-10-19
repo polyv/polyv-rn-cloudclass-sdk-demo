@@ -28,15 +28,21 @@ import android.widget.LinearLayout;
 import android.widget.RelativeLayout;
 import android.widget.TextView;
 
+import com.easefun.polyv.businesssdk.api.common.player.microplayer.PolyvCommonVideoView;
 import com.easefun.polyv.businesssdk.model.video.PolyvBaseVideoParams;
 import com.easefun.polyv.businesssdk.model.video.PolyvCloudClassVideoParams;
 import com.easefun.polyv.businesssdk.model.video.PolyvPlaybackVideoParams;
+import com.easefun.polyv.cloudclass.chat.IPolyvProhibitedWordListener;
 import com.easefun.polyv.cloudclass.chat.PolyvChatApiRequestHelper;
 import com.easefun.polyv.cloudclass.chat.PolyvChatManager;
 import com.easefun.polyv.cloudclass.chat.PolyvConnectStatusListener;
 import com.easefun.polyv.cloudclass.chat.PolyvNewMessageListener;
 import com.easefun.polyv.cloudclass.chat.PolyvNewMessageListener2;
+import com.easefun.polyv.cloudclass.chat.PolyvSocketCallbackListener;
+import com.easefun.polyv.cloudclass.chat.event.PolyvEventHelper;
+import com.easefun.polyv.cloudclass.chat.event.PolyvReloginEvent;
 import com.easefun.polyv.cloudclass.config.PolyvVClassGlobalConfig;
+import com.easefun.polyv.cloudclass.model.PolyvInteractiveCallbackVO;
 import com.easefun.polyv.cloudclass.model.PolyvLiveClassDetailVO;
 import com.easefun.polyv.cloudclass.model.PolyvSocketMessageVO;
 import com.easefun.polyv.cloudclass.model.answer.PolyvJSQuestionVO;
@@ -44,14 +50,19 @@ import com.easefun.polyv.cloudclass.model.answer.PolyvQuestionSocketVO;
 import com.easefun.polyv.cloudclass.model.answer.PolyvQuestionnaireSocketVO;
 import com.easefun.polyv.cloudclass.model.sign_in.PolyvSignIn2SocketVO;
 import com.easefun.polyv.cloudclass.net.PolyvApiManager;
+import com.easefun.polyv.cloudclass.playback.video.PolyvPlaybackListType;
+import com.easefun.polyv.cloudclass.playback.video.PolyvPlaybackVideoView;
 import com.easefun.polyv.cloudclass.video.PolyvAnswerWebView;
+import com.easefun.polyv.cloudclass.video.PolyvCloudClassVideoView;
 import com.easefun.polyv.cloudclassdemo.R;
 import com.easefun.polyv.cloudclassdemo.watch.chat.PolyvChatBaseFragment;
 import com.easefun.polyv.cloudclassdemo.watch.chat.PolyvChatFragmentAdapter;
 import com.easefun.polyv.cloudclassdemo.watch.chat.PolyvChatGroupFragment;
 import com.easefun.polyv.cloudclassdemo.watch.chat.PolyvChatPrivateFragment;
-import com.easefun.polyv.cloudclassdemo.watch.chat.config.PolyvChatUIConfig;
 import com.easefun.polyv.cloudclassdemo.watch.chat.liveInfo.PolyvLiveInfoFragment;
+import com.easefun.polyv.cloudclassdemo.watch.chat.menu.PolyvCustomMenuFragment;
+import com.easefun.polyv.cloudclassdemo.watch.chat.menu.PolyvTuWenMenuFragment;
+import com.easefun.polyv.cloudclassdemo.watch.chat.playback.PolyvChatPlaybackFragment;
 import com.easefun.polyv.cloudclassdemo.watch.linkMic.widget.PolyvLinkMicParent;
 import com.easefun.polyv.cloudclassdemo.watch.player.PolyvOrientoinListener;
 import com.easefun.polyv.cloudclassdemo.watch.player.live.PolyvCloudClassMediaController;
@@ -64,8 +75,9 @@ import com.easefun.polyv.cloudclassdemo.watch.player.playback.PolyvPlaybackVideo
 import com.easefun.polyv.cloudclassdemo.watch.player.playback.PolyvPlaybackVideoItem;
 import com.easefun.polyv.commonui.base.PolyvBaseActivity;
 import com.easefun.polyv.commonui.player.ppt.PolyvPPTItem;
-import com.easefun.polyv.commonui.utils.PolyvChatEventBus;
+import com.easefun.polyv.commonui.utils.PolyvSingleRelayBus;
 import com.easefun.polyv.commonui.widget.PolyvAnswerView;
+import com.easefun.polyv.commonui.widget.PolyvSimpleViewPager;
 import com.easefun.polyv.commonui.widget.PolyvTouchContainerView;
 import com.easefun.polyv.commonui.widget.badgeview.DisplayUtil;
 import com.easefun.polyv.commonui.widget.badgeview.QBadgeView;
@@ -76,11 +88,13 @@ import com.easefun.polyv.foundationsdk.net.PolyvResponseExcutor;
 import com.easefun.polyv.foundationsdk.net.PolyvrResponseCallback;
 import com.easefun.polyv.foundationsdk.rx.PolyvRxBus;
 import com.easefun.polyv.foundationsdk.rx.PolyvRxTimer;
+import com.easefun.polyv.foundationsdk.utils.PolyvGsonUtil;
 import com.easefun.polyv.foundationsdk.utils.PolyvScreenUtils;
 import com.easefun.polyv.linkmic.PolyvLinkMicWrapper;
 import com.easefun.polyv.thirdpart.blankj.utilcode.util.ConvertUtils;
 import com.easefun.polyv.thirdpart.blankj.utilcode.util.LogUtils;
 import com.easefun.polyv.thirdpart.blankj.utilcode.util.ScreenUtils;
+import com.easefun.polyv.thirdpart.blankj.utilcode.util.ToastUtils;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -116,12 +130,15 @@ public class PolyvCloudClassHomeActivity extends PolyvBaseActivity
     private RelativeLayout liveInfoChatItemLayout;
     private QBadgeView personalChatBadgeView, groupChatBadgeView;
     private FrameLayout playerContainer, imageViewerContainer, chatEditContainer;
-    private ViewPager chatViewPager;
+    private PolyvSimpleViewPager chatViewPager;
     private PolyvChatFragmentAdapter chatPagerAdapter;
     private View lastSelectTabItem;
     private PolyvChatPullLayout chatPullIcon;
-    private  boolean isChatBottom,fullScreenDown;//聊天室是否已经在底部
+    private boolean isChatBottom, fullScreenDown;//聊天室是否已经在底部
     private float chatMoveY;//聊天室移动到底部得距离
+
+    //聊天回放相关
+    private PolyvChatPlaybackFragment chatPlaybackFragment;
 
     //直播与点播辅助类
     private PolyvCloudClassVideoHelper livePlayerHelper;
@@ -154,7 +171,9 @@ public class PolyvCloudClassHomeActivity extends PolyvBaseActivity
     private static final String SUPPORT_RTC = "supportrtc";
     private static final String NORMALLIVE_PLAYBACK = "normallive_playback";
     private static final String DEFAULT_NICKNAME = "POLYV";
-    private static final String EXTRA_IS_PARTICIPANT="is_participant";
+    private static final String EXTRA_IS_PARTICIPANT = "is_participant";
+    private static final String EXTRA_RTC_TYPE="rtc_type";
+    private static final String VIDEO_LISTTYPE = "video_listtype";
 
     //直播与点播类型选择
 
@@ -181,46 +200,34 @@ public class PolyvCloudClassHomeActivity extends PolyvBaseActivity
     //是否是参与者
     private boolean isParticipant;
 
+    //回放视频所在列表的类型
+    private int videoListType;
+
+    //rtc类型
+    private String rtcType="";
     // </editor-fold>
 
     // <editor-fold defaultstate="collapsed" desc="入口">
-    public static void startActivityForLive(Activity activity, String channelId, String userId, boolean isNormalLive) {
+    //带有参与者标志位的直播入口
+    public static void startActivityForLiveWithParticipant(Activity activity, String channelId, String userId, boolean isNormalLive, boolean isParticipant,String rtcType) {
         Intent intent = new Intent(activity, PolyvCloudClassHomeActivity.class);
         intent.putExtra(CHANNELID_KEY, channelId);
         intent.putExtra(USERID_KEY, userId);
         intent.putExtra(NORMALLIVE, isNormalLive);
-        intent.putExtra(PLAY_TYPE_KEY, PLAYMODE_LIVE);
-        activity.startActivity(intent);
-    }
-    //从VClass进入
-    public static void startActivityForLiveFromVClass(Activity activity, String channelId, String userId, boolean isNormalLive,boolean isParticipant){
-        Intent intent=new Intent(activity,PolyvCloudClassHomeActivity.class);
-        intent.putExtra(CHANNELID_KEY, channelId);
-        intent.putExtra(USERID_KEY, userId);
-        intent.putExtra(NORMALLIVE, isNormalLive);
         intent.putExtra(PLAY_TYPE_KEY, PolyvPlayOption.PLAYMODE_LIVE);
-        intent.putExtra(EXTRA_IS_PARTICIPANT,isParticipant);
+        intent.putExtra(EXTRA_IS_PARTICIPANT, isParticipant);
+        intent.putExtra(EXTRA_RTC_TYPE,rtcType);
         activity.startActivity(intent);
     }
 
-    //带有参与者标志位的直播入口
-    public static void startActivityForLiveWithParticipant(Activity activity, String channelId, String userId, boolean isNormalLive, boolean isParticipant){
-        Intent intent=new Intent(activity,PolyvCloudClassHomeActivity.class);
-        intent.putExtra(CHANNELID_KEY, channelId);
-        intent.putExtra(USERID_KEY, userId);
-        intent.putExtra(NORMALLIVE, isNormalLive);
-        intent.putExtra(PLAY_TYPE_KEY, PolyvPlayOption.PLAYMODE_LIVE);
-        intent.putExtra(EXTRA_IS_PARTICIPANT,isParticipant);
-        activity.startActivity(intent);
-    }
-
-    public static void startActivityForPlayBack(Activity activity, String videoId, String channelId, String userId, boolean isNormalLivePlayBack) {
+    public static void startActivityForPlayBack(Activity activity, String videoId, String channelId, String userId, boolean isNormalLivePlayBack, int videoListType) {
         Intent intent = new Intent(activity, PolyvCloudClassHomeActivity.class);
         intent.putExtra(VIDEOID_KEY, videoId);
         intent.putExtra(USERID_KEY, userId);
         intent.putExtra(CHANNELID_KEY, channelId);
         intent.putExtra(NORMALLIVE_PLAYBACK, isNormalLivePlayBack);
         intent.putExtra(PLAY_TYPE_KEY, PolyvPlayOption.PLAYMODE_VOD);
+        intent.putExtra(VIDEO_LISTTYPE, videoListType);
         activity.startActivity(intent);
     }
     // </editor-fold>
@@ -242,7 +249,7 @@ public class PolyvCloudClassHomeActivity extends PolyvBaseActivity
 
         initial();
 
-        //获取私聊开关
+        //获取直播后台的功能开关
         requestLiveClassDetailApi();
 
         if (playMode == PLAYMODE_LIVE) {
@@ -315,38 +322,37 @@ public class PolyvCloudClassHomeActivity extends PolyvBaseActivity
             chatManager.destroy();
         }
 
-        if(teacherInfoLayout != null){
+        if (teacherInfoLayout != null) {
             teacherInfoLayout.onDestroy();
         }
 
-        if(compositeDisposable != null){
+        if (compositeDisposable != null) {
             compositeDisposable.dispose();
             compositeDisposable = null;
         }
 
         PolyvLinkMicWrapper.getInstance().destroy(linkMicStubView);
-        PolyvChatEventBus.clear();
+        PolyvSingleRelayBus.clear();
     }
     // </editor-fold>
 
     // <editor-fold defaultstate="collapsed" desc="初始化">
     private void initialStudentIdAndNickName() {
-        if(!PolyvVClassGlobalConfig.IS_VCLASS){
-//            viewerId = "" + Build.SERIAL;
+        //初始化观众id和观众昵称，用于统计数据
+//        if (isParticipant) {
+//            viewerId = PolyvVClassGlobalConfig.viewerId;
+//            viewerName = PolyvVClassGlobalConfig.username;
+//        } else {
+//            //todo 这里仅为了展示使用，开发者应当将viewerid、viewerName设置为应用使用用户的ID和昵称，以保证直播SDK的统计数据映射相对的用户系统
+//            //如：viewerId设置为手机号等唯一识别号ID，viewerName设置为用户昵称
+//            viewerId = "" + Settings.System.getString(getContentResolver(), Settings.Secure.ANDROID_ID);
 //            viewerName = "学员" + viewerId;
-            viewerId = PolyvVClassGlobalConfig.viewerId;
-            viewerName = PolyvVClassGlobalConfig.username;
-        }else {
-            //初始化观众id和观众昵称，用于统计数据
-            if (isParticipant){
-                viewerId = PolyvVClassGlobalConfig.viewerId;
-            }else {
-                viewerId = "" + Build.SERIAL;
-//            viewerName = "学员" + viewerId;
-            }
-            viewerName = PolyvVClassGlobalConfig.username;
-        }
+//        }
 
+        viewerId = PolyvVClassGlobalConfig.viewerId;
+        viewerName = PolyvVClassGlobalConfig.username;
+
+        PolyvVClassGlobalConfig.userId = userId;
     }
 
     private void initial() {
@@ -373,13 +379,11 @@ public class PolyvCloudClassHomeActivity extends PolyvBaseActivity
 
     private void initialTeacherInfo() {
 
-        if(playMode == PLAYMODE_LIVE){
-            teacherInfoLayout.init(livePlayerHelper,videoPptContainer);
-        }else {
+        if (playMode == PLAYMODE_LIVE) {
+            teacherInfoLayout.init(livePlayerHelper, videoPptContainer, isParticipant, rtcType);
+        } else {
             teacherInfoLayout.setVisibility(View.GONE);
         }
-
-        teacherInfoLayout.hideHandsUpLink(isParticipant);
     }
 
     private void initialParams() {
@@ -390,7 +394,9 @@ public class PolyvCloudClassHomeActivity extends PolyvBaseActivity
         isNormalLive = intent.getBooleanExtra(NORMALLIVE, true);
         isNormalLivePlayBack = intent.getBooleanExtra(NORMALLIVE_PLAYBACK, true);
         playMode = intent.getIntExtra(PLAY_TYPE_KEY, PolyvPlayOption.PLAYMODE_VOD);
-        isParticipant=intent.getBooleanExtra(EXTRA_IS_PARTICIPANT,false);
+        isParticipant = intent.getBooleanExtra(EXTRA_IS_PARTICIPANT, false);
+        videoListType = intent.getIntExtra(VIDEO_LISTTYPE, PolyvPlaybackListType.PLAYBACK);
+        rtcType=intent.getStringExtra(EXTRA_RTC_TYPE);
     }
 
     private void initialLinkMic() {
@@ -398,7 +404,7 @@ public class PolyvCloudClassHomeActivity extends PolyvBaseActivity
             return;
         }
 
-        linkMicParent  = new PolyvLinkMicParent();
+        linkMicParent = new PolyvLinkMicParent();
         if (isNormalLive) {
             linkMicStub = findViewById(R.id.polyv_normal_live_link_mic_stub);
         } else {
@@ -408,7 +414,7 @@ public class PolyvCloudClassHomeActivity extends PolyvBaseActivity
             linkMicStubView = (ViewGroup) linkMicStub.inflate();
         }
 
-        linkMicParent.initView(linkMicStubView,isParticipant,teacherInfoLayout);
+        linkMicParent.initView(linkMicStubView, isParticipant, teacherInfoLayout);
 
     }
 
@@ -423,74 +429,75 @@ public class PolyvCloudClassHomeActivity extends PolyvBaseActivity
         chatViewPager = findViewById(R.id.chat_viewpager);
 
 //        if (playMode == PolyvPlayOption.PLAYMODE_LIVE) {//直播
-            chatContainerLayout.setVisibility(View.VISIBLE);
-            //test
-            chatPullIcon.setChatPullLayoutCallback(new PolyvChatPullLayout.ChatPullLayoutCallback() {
-                @Override
-                public void pullUp() {
-                    if(livePlayerHelper != null && livePlayerHelper.isJoinLinkMick()){
-                        upChatLayout(chatContainerLayout);
-                    }
+        chatContainerLayout.setVisibility(View.VISIBLE);
+        //test
+        chatPullIcon.setChatPullLayoutCallback(new PolyvChatPullLayout.ChatPullLayoutCallback() {
+            @Override
+            public void pullUp() {
+                if (livePlayerHelper != null && livePlayerHelper.isJoinLinkMick()) {
+                    upChatLayout(chatContainerLayout);
                 }
+            }
 
-                @Override
-                public void pullDown() {
-                    if(livePlayerHelper != null && livePlayerHelper.isJoinLinkMick()){
-                        downChatLayout(chatContainerLayout);
-                    }
+            @Override
+            public void pullDown() {
+                if (livePlayerHelper != null && livePlayerHelper.isJoinLinkMick()) {
+                    downChatLayout(chatContainerLayout);
                 }
-            });
+            }
+        });
 
-            List<Fragment> fragments = new ArrayList<>();
-            chatPagerAdapter = new PolyvChatFragmentAdapter(getSupportFragmentManager(), fragments);
-            chatViewPager.setAdapter(chatPagerAdapter);
-            chatViewPager.setPageMargin(ConvertUtils.dp2px(10));
-            chatViewPager.setOffscreenPageLimit(5);
-            chatViewPager.addOnPageChangeListener(new ViewPager.OnPageChangeListener() {
-                @Override
-                public void onPageScrolled(int position, float positionOffset, int positionOffsetPixels) {
-                }
+        List<Fragment> fragments = new ArrayList<>();
+        chatPagerAdapter = new PolyvChatFragmentAdapter(getSupportFragmentManager(), fragments);
+        chatViewPager.setAdapter(chatPagerAdapter);
+        chatViewPager.setPageMargin(ConvertUtils.dp2px(10));
+        chatViewPager.setOffscreenPageLimit(5);
+        chatViewPager.addOnPageChangeListener(new ViewPager.OnPageChangeListener() {
+            @Override
+            public void onPageScrolled(int position, float positionOffset, int positionOffsetPixels) {
+            }
 
-                @Override
-                public void onPageSelected(int position) {
+            @Override
+            public void onPageSelected(int position) {
+                if (lastSelectTabItem != null) {
+                    lastSelectTabItem.setSelected(false);
+                    lastSelectTabItem = chatTopSelectLayout.getChildAt(position);
                     if (lastSelectTabItem != null) {
-                        lastSelectTabItem.setSelected(false);
-                        lastSelectTabItem = chatTopSelectLayout.getChildAt(position);
-                        if (lastSelectTabItem != null) {
-                            lastSelectTabItem.setSelected(true);
-                        }
-
-                        if (chatPrivateFragment != null) {
-                            personalChatBadgeView.setBadgeNumber(lastSelectTabItem == personalChatItemLayout ? 0 : chatPrivateFragment.getChatListUnreadCount());
-                        }
-                        if (groupChatBadgeView != null) {
-                            groupChatBadgeView.setBadgeNumber(lastSelectTabItem == groupChatItemLayout ? 0 : chatGroupFragment.getChatListUnreadCount());
-                        }
+                        lastSelectTabItem.setSelected(true);
                     }
-                }
 
-                @Override
-                public void onPageScrollStateChanged(int state) {
-                }
-            });
-            chatContainerLayout.addOnLayoutChangeListener(new View.OnLayoutChangeListener() {
-                @Override
-                public void onLayoutChange(View v, int left, int top,
-                                           int right, int bottom, int oldLeft,
-                                           int oldTop, int oldRight, int oldBottom) {
-                    // 当键盘弹出导致布局发生改变时，需要对应的改变播放器的位置，键盘关闭时恢复到原来的位置
-                    if (bottom > 0 && oldBottom > 0 && right == oldRight) {
-                        if (Math.abs(bottom - oldBottom) > PolyvScreenUtils.getNormalWH(PolyvCloudClassHomeActivity.this)[1] * 0.3)
-                            // 键盘关闭
-                            if (bottom > oldBottom) {
-                                resetSubVideo();
-                            }// 键盘弹出
-                            else if (bottom < oldBottom) {
-                                moveSubVideo();
-                            }
+                    if (chatPrivateFragment != null) {
+                        personalChatBadgeView.setBadgeNumber(lastSelectTabItem == personalChatItemLayout ? 0 : chatPrivateFragment.getChatListUnreadCount());
                     }
+                    if (groupChatBadgeView != null) {
+                        groupChatBadgeView.setBadgeNumber(lastSelectTabItem == groupChatItemLayout ? 0 : chatGroupFragment.getChatListUnreadCount());
+                    }
+                    scrollToVisibleTab(lastSelectTabItem);
                 }
-            });
+            }
+
+            @Override
+            public void onPageScrollStateChanged(int state) {
+            }
+        });
+        chatContainerLayout.addOnLayoutChangeListener(new View.OnLayoutChangeListener() {
+            @Override
+            public void onLayoutChange(View v, int left, int top,
+                                       int right, int bottom, int oldLeft,
+                                       int oldTop, int oldRight, int oldBottom) {
+                // 当键盘弹出导致布局发生改变时，需要对应的改变播放器的位置，键盘关闭时恢复到原来的位置
+                if (bottom > 0 && oldBottom > 0 && right == oldRight) {
+                    if (Math.abs(bottom - oldBottom) > PolyvScreenUtils.getNormalWH(PolyvCloudClassHomeActivity.this)[1] * 0.3)
+                        // 键盘关闭
+                        if (bottom > oldBottom) {
+                            resetSubVideo();
+                        }// 键盘弹出
+                        else if (bottom < oldBottom) {
+                            moveSubVideo();
+                        }
+                }
+            }
+        });
 //        }
     }
 
@@ -509,7 +516,7 @@ public class PolyvCloudClassHomeActivity extends PolyvBaseActivity
                 }
 
                 boolean isLive = playMode == PLAYMODE_LIVE;
-                rlp.leftMargin = isLive?0:
+                rlp.leftMargin = isLive ? 0 :
                         ((View) videoPptContainer.getParent()).getMeasuredWidth() - videoPptContainer.getMeasuredWidth();
                 if (getResources().getConfiguration().orientation == Configuration.ORIENTATION_LANDSCAPE) {
                     rlp.topMargin = 0;
@@ -539,6 +546,13 @@ public class PolyvCloudClassHomeActivity extends PolyvBaseActivity
         answerView = findViewById(R.id.answer_layout);
         answerContainer = answerView.findViewById(R.id.polyv_answer_web_container);
         answerView.setViewerId(viewerId);
+        chatManager.setSocketCallbackListener(new PolyvSocketCallbackListener() {
+            @Override
+            public void socketCallback(PolyvInteractiveCallbackVO callbackVO) {
+                //发送互动应用到服务器的结果callback
+                answerView.showInteractiveCallback(PolyvGsonUtil.toJsonSimple(callbackVO));
+            }
+        });
         answerView.setAnswerJsCallback(new PolyvAnswerWebView.AnswerJsCallback() {
             @Override
             public void callOnHasAnswer(PolyvJSQuestionVO polyvJSQuestionVO) {
@@ -547,7 +561,7 @@ public class PolyvCloudClassHomeActivity extends PolyvBaseActivity
                     PolyvQuestionSocketVO socketVO = new PolyvQuestionSocketVO
                             (polyvJSQuestionVO.getAnswerId(), viewerName, polyvJSQuestionVO.getQuestionId(),
                                     channelId, chatManager.userId);
-                    chatManager.sendScoketMessage(Socket.EVENT_MESSAGE, socketVO);
+                    chatManager.sendInteractiveSocketMessage(Socket.EVENT_MESSAGE, socketVO,3,PolyvInteractiveCallbackVO.EVENT_ANSWER);
                 }
             }
 
@@ -557,34 +571,40 @@ public class PolyvCloudClassHomeActivity extends PolyvBaseActivity
                 polyvQuestionnaireSocketVO.setNick(viewerName);
                 polyvQuestionnaireSocketVO.setRoomId(channelId);
                 polyvQuestionnaireSocketVO.setUserId(chatManager.userId);
-                chatManager.sendScoketMessage(Socket.EVENT_MESSAGE, polyvQuestionnaireSocketVO);
+                chatManager.sendInteractiveSocketMessage(Socket.EVENT_MESSAGE, polyvQuestionnaireSocketVO,3,PolyvInteractiveCallbackVO.EVENT_QUESTIONNAIRE);
             }
 
             @Override
             public void callOnSignIn(PolyvSignIn2SocketVO socketVO) {
                 socketVO.setUser(new PolyvSignIn2SocketVO.UserBean(viewerName, viewerId));
-                chatManager.sendScoketMessage(Socket.EVENT_MESSAGE, socketVO);
+                chatManager.sendInteractiveSocketMessage(Socket.EVENT_MESSAGE, socketVO,3, PolyvInteractiveCallbackVO.EVENT_SIGN);
             }
 
             @Override
-            public void callOnLotteryWin(String lotteryId, String winnerCode, String viewerId, String telephone,String realName,String address) {
+            public void callOnLotteryWin(String lotteryId, String winnerCode, String viewerId, String telephone, String realName, String address) {
                 PolyvResponseExcutor.excuteDataBean(PolyvApiManager.getPolyvApichatApi()
-                                .postLotteryWinnerInfo(channelId, lotteryId, winnerCode, PolyvCloudClassHomeActivity.this.viewerId, realName, telephone,address),
+                                .postLotteryWinnerInfo(channelId, lotteryId, winnerCode, PolyvCloudClassHomeActivity.this.viewerId, realName, telephone, address),
                         String.class, new PolyvrResponseCallback<String>() {
                             @Override
                             public void onSuccess(String s) {
                                 LogUtils.d("抽奖信息上传成功" + s);
+                                PolyvInteractiveCallbackVO vo = new PolyvInteractiveCallbackVO(PolyvInteractiveCallbackVO.EVENT_LOTTERY, 200);
+                                answerView.showInteractiveCallback(PolyvGsonUtil.toJsonSimple(vo));
                             }
 
                             @Override
                             public void onFailure(PolyvResponseBean<String> responseBean) {
                                 super.onFailure(responseBean);
+                                PolyvInteractiveCallbackVO vo = new PolyvInteractiveCallbackVO(PolyvInteractiveCallbackVO.EVENT_LOTTERY, 400);
+                                answerView.showInteractiveCallback(PolyvGsonUtil.toJsonSimple(vo));
                                 LogUtils.e("抽奖信息上传失败" + responseBean);
                             }
 
                             @Override
                             public void onError(Throwable e) {
                                 super.onError(e);
+                                PolyvInteractiveCallbackVO vo = new PolyvInteractiveCallbackVO(PolyvInteractiveCallbackVO.EVENT_LOTTERY, 400);
+                                answerView.showInteractiveCallback(PolyvGsonUtil.toJsonSimple(vo));
                                 LogUtils.e("抽奖信息上传失败");
                                 if (e instanceof HttpException) {
                                     try {
@@ -601,6 +621,48 @@ public class PolyvCloudClassHomeActivity extends PolyvBaseActivity
             }
 
             @Override
+            public void callOnLotteryWinNew(String lotteryId, String winnerCode, String viewerId,
+                                            String receiveInfo, String seesionId) {
+                PolyvResponseExcutor.excuteDataBean(PolyvApiManager.getPolyvApichatApi()
+                                .postLotteryWinnerInfoNew(channelId, lotteryId, winnerCode, PolyvCloudClassHomeActivity.this.viewerId, receiveInfo, seesionId),
+                        String.class, new PolyvrResponseCallback<String>() {
+                            @Override
+                            public void onSuccess(String s) {
+                                LogUtils.d("抽奖信息上传成功" + s);
+                                PolyvInteractiveCallbackVO vo = new PolyvInteractiveCallbackVO(PolyvInteractiveCallbackVO.EVENT_LOTTERY, 200);
+                                answerView.showInteractiveCallback(PolyvGsonUtil.toJsonSimple(vo));
+                            }
+
+                            @Override
+                            public void onFailure(PolyvResponseBean<String> responseBean) {
+                                super.onFailure(responseBean);
+                                LogUtils.e("抽奖信息上传失败" + responseBean);
+                                PolyvInteractiveCallbackVO vo = new PolyvInteractiveCallbackVO(PolyvInteractiveCallbackVO.EVENT_LOTTERY, 400);
+                                answerView.showInteractiveCallback(PolyvGsonUtil.toJsonSimple(vo));
+                            }
+
+                            @Override
+                            public void onError(Throwable e) {
+                                super.onError(e);
+                                PolyvInteractiveCallbackVO vo = new PolyvInteractiveCallbackVO(PolyvInteractiveCallbackVO.EVENT_LOTTERY, 400);
+                                answerView.showInteractiveCallback(PolyvGsonUtil.toJsonSimple(vo));
+                                LogUtils.e("抽奖信息上传失败");
+                                if (e instanceof HttpException) {
+                                    try {
+                                        ResponseBody errorBody = ((HttpException) e).response().errorBody();
+                                        if (errorBody != null) {
+                                            LogUtils.e(errorBody.string());
+                                        }
+                                    } catch (IOException e1) {
+                                        e1.printStackTrace();
+                                    }
+                                }
+                            }
+                        });
+            }
+
+
+            @Override
             public void callOnAbandonLottery() {
                 PolyvResponseExcutor.excuteDataBean(PolyvApiManager.getPolyvApichatApi()
                                 .postLotteryAbandon(channelId, viewerId), String.class,
@@ -613,7 +675,6 @@ public class PolyvCloudClassHomeActivity extends PolyvBaseActivity
                             @Override
                             public void onFailure(PolyvResponseBean<String> responseBean) {
                                 super.onFailure(responseBean);
-                                LogUtils.d("放弃领奖信息上传失败 " + responseBean);
                             }
 
                             @Override
@@ -697,7 +758,8 @@ public class PolyvCloudClassHomeActivity extends PolyvBaseActivity
                 .buildOptions(PolyvBaseVideoParams.IS_PPT_PLAY, true)
                 // TODO: 2019/3/25 请在此处填入用户的昵称
                 .buildOptions(PolyvBaseVideoParams.PARAMS2, viewerName)
-                .buildOptions(PolyvPlaybackVideoParams.ENABLE_ACCURATE_SEEK, true);
+                .buildOptions(PolyvPlaybackVideoParams.ENABLE_ACCURATE_SEEK, true)
+                .buildOptions(PolyvPlaybackVideoParams.VIDEO_LISTTYPE, videoListType);
         playbackVideoHelper.startPlay(playbackVideoParams);
     }
 
@@ -706,12 +768,14 @@ public class PolyvCloudClassHomeActivity extends PolyvBaseActivity
         cloudClassVideoItem.setOnSendDanmuListener(new IPolyvLandscapeDanmuSender.OnSendDanmuListener() {
             @Override
             public void onSendDanmu(String danmuMessage) {
-                chatGroupFragment.sendChatMessageByDanmu(danmuMessage);
+                if (chatGroupFragment != null) {
+                    chatGroupFragment.sendChatMessageByDanmu(danmuMessage);
+                }
             }
         });
 
         livePlayerHelper = new PolyvCloudClassVideoHelper(cloudClassVideoItem,
-                isNormalLive ? null : new PolyvPPTItem<PolyvCloudClassMediaController>(this), chatManager,channelId);
+                isNormalLive ? null : new PolyvPPTItem<PolyvCloudClassMediaController>(this), chatManager, channelId);
         livePlayerHelper.addVideoPlayer(playerContainer);
         livePlayerHelper.initConfig(isNormalLive);
         livePlayerHelper.addPPT(videoPptContainer);
@@ -720,7 +784,7 @@ public class PolyvCloudClassHomeActivity extends PolyvBaseActivity
 
         PolyvCloudClassVideoParams cloudClassVideoParams = new PolyvCloudClassVideoParams(channelId, userId
                 , viewerId// viewerid
-                 );
+        );
         cloudClassVideoParams.buildOptions(PolyvBaseVideoParams.WAIT_AD, true)
                 .buildOptions(PolyvBaseVideoParams.MARQUEE, true)
                 // TODO: 2019/3/25 请在此处填入用户的昵称
@@ -729,11 +793,11 @@ public class PolyvCloudClassHomeActivity extends PolyvBaseActivity
 
         livePlayerHelper.addHomeProtocol(this);
 
-        if(linkMicParent != null){
+        if (linkMicParent != null) {
             linkMicParent.addClassHelper(livePlayerHelper);
         }
 
-        if(isParticipant){
+        if (isParticipant) {
             livePlayerHelper.joinLink(true);
         }
     }
@@ -777,19 +841,19 @@ public class PolyvCloudClassHomeActivity extends PolyvBaseActivity
     // <editor-fold defaultstate="collapsed" desc="动画">
 
     private void downChatLayout(final View animationView) {
-        if(isChatBottom){
+        if (isChatBottom) {
             return;
         }
         teacherInfoLayout.post(new Runnable() {
             @Override
             public void run() {
-                chatMoveY = animationView.getBottom()-animationView.getTop()-chatTopSelectLayout.getHeight() -
-                        DisplayUtil.dp2px(PolyvCloudClassHomeActivity.this,32);
-                if(chatMoveY <0){
+                chatMoveY = animationView.getBottom() - animationView.getTop() - chatTopSelectLayout.getHeight() -
+                        DisplayUtil.dp2px(PolyvCloudClassHomeActivity.this, 32);
+                if (chatMoveY < 0) {
                     fullScreenDown = true;
                     return;
                 }
-                ObjectAnimator animator =   ObjectAnimator.ofFloat(animationView,"translationY",0,chatMoveY);
+                ObjectAnimator animator = ObjectAnimator.ofFloat(animationView, "translationY", 0, chatMoveY);
                 animator.setDuration(1000);
                 animator.start();
                 animator.addListener(new Animator.AnimatorListener() {
@@ -819,14 +883,14 @@ public class PolyvCloudClassHomeActivity extends PolyvBaseActivity
     }
 
     private void upChatLayout(final View animationView) {
-        if(!isChatBottom){
+        if (!isChatBottom) {
             return;
         }
         teacherInfoLayout.post(new Runnable() {
             @Override
             public void run() {
-                ObjectAnimator animator =   ObjectAnimator.ofFloat
-                        (animationView,"translationY",chatMoveY,0);
+                ObjectAnimator animator = ObjectAnimator.ofFloat
+                        (animationView, "translationY", chatMoveY, 0);
                 animator.setDuration(1000);
                 animator.start();
                 isChatBottom = false;
@@ -877,6 +941,9 @@ public class PolyvCloudClassHomeActivity extends PolyvBaseActivity
                 if (fragment instanceof PolyvChatBaseFragment) {
                     if (((PolyvChatBaseFragment) fragment).onBackPressed())
                         return true;
+                } else if (fragment instanceof PolyvCustomMenuFragment) {
+                    if (((PolyvCustomMenuFragment) fragment).goBack())
+                        return true;
                 }
             }
         }
@@ -891,11 +958,11 @@ public class PolyvCloudClassHomeActivity extends PolyvBaseActivity
                 .subscribe(new Consumer<PolyvLiveClassDetailVO>() {
                     @Override
                     public void accept(PolyvLiveClassDetailVO polyvLiveClassDetailVO) throws Exception {
-                        boolean isLive=polyvLiveClassDetailVO.getData().getWatchStatus().equals("live");
-                        if (!isLive){
-                            Object startTime=polyvLiveClassDetailVO.getData().getStartTime();
+                        boolean isLive = polyvLiveClassDetailVO.getData().getWatchStatus().equals("live");
+                        if (!isLive) {
+                            Object startTime = polyvLiveClassDetailVO.getData().getStartTime();
                             //startTime==null表示没设置直播开始时间
-                            if (startTime!=null&&cloudClassVideoItem!=null){
+                            if (startTime != null && cloudClassVideoItem != null) {
                                 cloudClassVideoItem.startLiveTimeCountDown(startTime.toString());
                             }
                         }
@@ -907,25 +974,94 @@ public class PolyvCloudClassHomeActivity extends PolyvBaseActivity
                                 setupChatGroupFragment(channelMenusBean);
                             } else if (PolyvLiveClassDetailVO.MENUTYPE_QUIZ.equals(channelMenusBean.getMenuType())) {
                                 setupChatPrivateFragment(channelMenusBean);
+                            } else if (PolyvLiveClassDetailVO.MENUTYPE_TEXT.equals(channelMenusBean.getMenuType())) {
+                                setupCustomMenuFragment(channelMenusBean, false);
+                            } else if (PolyvLiveClassDetailVO.MENUTYPE_IFRAME.equals(channelMenusBean.getMenuType())) {
+                                setupCustomMenuFragment(channelMenusBean, true);
+                            } else if (PolyvLiveClassDetailVO.MENUTYPE_TUWEN.equals(channelMenusBean.getMenuType())) {
+                                setupTuWenMenuFragment(channelMenusBean);
                             }
                         }
 
+                        setupChatPlaybackFragment();
                         refreshChatPagerAdapter();
+
+                        if (isParticipant && polyvLiveClassDetailVO.isViewerSignalEnabled() && linkMicParent != null) {
+                            linkMicParent.showLookAtMeView();
+                        }
                     }
                 }, new Consumer<Throwable>() {
                     @Override
                     public void accept(Throwable throwable) throws Exception {
-                        //获取失败，私聊tab默认关闭
+                        PolyvCommonLog.e(TAG, throwable.getMessage());
+                        //获取失败
+                        setupChatPlaybackFragment();
+                        refreshChatPagerAdapter();
                     }
                 }));
     }
 
+    private void setupTuWenMenuFragment(PolyvLiveClassDetailVO.DataBean.ChannelMenusBean channelMenusBean) {
+        if (playMode == PolyvPlayOption.PLAYMODE_VOD) {//直播
+            return;
+        }
+        Bundle bundle = new Bundle();
+        bundle.putString("channelId", channelId);
+        PolyvTuWenMenuFragment tuWenMenuFragment = new PolyvTuWenMenuFragment();
+        tuWenMenuFragment.setArguments(bundle);
+
+        // 把 tuWenMenuFragment 对象添加到 chatPagerAdapter
+        chatPagerAdapter.add(tuWenMenuFragment);
+        // 创建 customMenuFragment 对象对应的 tabbar item
+        int index = chatPagerAdapter.getCount() - 1;
+        String title = channelMenusBean.getName();
+        if (TextUtils.isEmpty(title)) {
+            title = PolyvCloudClassHomeActivity.this.getString(R.string.chat_tab_tuwen_menu_text_default);
+        }
+        RelativeLayout tuWenMenuChatItemLayout = addTabItemView(index, title, chatTopSelectLayout);
+
+        fagmentTapMap.put(tuWenMenuFragment, tuWenMenuChatItemLayout);
+    }
+
+    private void setupCustomMenuFragment(PolyvLiveClassDetailVO.DataBean.ChannelMenusBean channelMenusBean, boolean isIFrameMenu) {
+        if (playMode == PolyvPlayOption.PLAYMODE_VOD) {//直播
+            return;
+        }
+        Bundle bundle = new Bundle();
+        if (!isIFrameMenu) {
+            bundle.putString("text", channelMenusBean.getContent());
+        } else {
+            bundle.putString("url", channelMenusBean.getContent());
+        }
+        bundle.putBoolean("isIFrameMenu", isIFrameMenu);
+        PolyvCustomMenuFragment customMenuFragment = new PolyvCustomMenuFragment();
+        customMenuFragment.setArguments(bundle);
+
+        // 把 customMenuFragment 对象添加到 chatPagerAdapter
+        chatPagerAdapter.add(customMenuFragment);
+
+        // 创建 customMenuFragment 对象对应的 tabbar item
+        int index = chatPagerAdapter.getCount() - 1;
+        String title = channelMenusBean.getName();
+        if (TextUtils.isEmpty(title)) {
+            title = !isIFrameMenu ? PolyvCloudClassHomeActivity.this.getString(R.string.chat_tab_custom_menu_text_default) :
+                    PolyvCloudClassHomeActivity.this.getString(R.string.chat_tab_iframe_menu_text_default);
+        }
+        RelativeLayout customMenuChatItemLayout = addTabItemView(index, title, chatTopSelectLayout);
+
+        fagmentTapMap.put(customMenuFragment, customMenuChatItemLayout);
+    }
+
     private void setupLiveInfoFragment(PolyvLiveClassDetailVO polyvLiveClassDetailVO, PolyvLiveClassDetailVO.DataBean.ChannelMenusBean channelMenusBean) {
+        if (playMode == PolyvPlayOption.PLAYMODE_VOD) {//直播
+            return;
+        }
         // 创建 liveInfoFragment 对象
         Bundle bundle = new Bundle();
-        bundle.putSerializable("classDetail", polyvLiveClassDetailVO);
-        bundle.putSerializable("classDetailItem", channelMenusBean);
-        bundle.putInt("playMode", playMode);
+        bundle.putSerializable(PolyvLiveInfoFragment.ARGUMENT_CLASS_DETAIL, polyvLiveClassDetailVO);
+        bundle.putSerializable(PolyvLiveInfoFragment.ARGUMENT_CLASS_DETAIL_ITEM, channelMenusBean);
+        bundle.putString(PolyvLiveInfoFragment.ARGUMENT_VIEWER_ID, viewerId);
+        bundle.putInt(PolyvLiveInfoFragment.ARGUMENT_PLAY_MODE, playMode);
         PolyvLiveInfoFragment liveInfoFragment = new PolyvLiveInfoFragment();
         liveInfoFragment.setArguments(bundle);
 
@@ -933,7 +1069,7 @@ public class PolyvCloudClassHomeActivity extends PolyvBaseActivity
         chatPagerAdapter.add(liveInfoFragment);
 
         // 创建 liveInfoFragment 对象对应的 tabbar item
-        int index = chatPagerAdapter.getCount()-1;
+        int index = chatPagerAdapter.getCount() - 1;
         String title = channelMenusBean.getName();
         if (TextUtils.isEmpty(title)) {
             title = PolyvCloudClassHomeActivity.this.getString(R.string.chat_tab_live_info_text_default);
@@ -941,6 +1077,30 @@ public class PolyvCloudClassHomeActivity extends PolyvBaseActivity
         liveInfoChatItemLayout = addTabItemView(index, title, chatTopSelectLayout);
 
         fagmentTapMap.put(liveInfoFragment, liveInfoChatItemLayout);
+    }
+
+    private void setupChatPlaybackFragment() {
+        if (playMode != PolyvPlayOption.PLAYMODE_VOD) {//回放，只保留回放聊天tab
+            return;
+        }
+        // 创建 chatPlaybackFragment 对象
+        Bundle bundle = new Bundle();
+        bundle.putString("videoId", videoId);
+        chatPlaybackFragment = new PolyvChatPlaybackFragment();
+        chatPlaybackFragment.setArguments(bundle);
+
+        // 设置学员信息给 chatPlaybackFragment
+        chatPlaybackFragment.setViewerInfo(viewerId, channelId, viewerName, null, null);
+
+        // 把 chatPlaybackFragment 对象添加到 chatPagerAdapter
+        chatPagerAdapter.add(chatPlaybackFragment);
+
+        // 创建 chatPlaybackFragment 对象对应的 tabbar item
+        int index = chatPagerAdapter.getCount() - 1;
+        String title = PolyvCloudClassHomeActivity.this.getString(R.string.chat_tab_group_chat_text_default);
+        RelativeLayout playbackChatItemLayout = addTabItemView(index, title, chatTopSelectLayout);
+
+        fagmentTapMap.put(chatPlaybackFragment, playbackChatItemLayout);
     }
 
     private void setupChatGroupFragment(PolyvLiveClassDetailVO.DataBean.ChannelMenusBean channelMenusBean) {
@@ -955,7 +1115,7 @@ public class PolyvCloudClassHomeActivity extends PolyvBaseActivity
         chatPagerAdapter.add(chatGroupFragment);
 
         // 创建 chatGroupFragment 对象对应的 tabbar item
-        int index = chatPagerAdapter.getCount()-1;
+        int index = chatPagerAdapter.getCount() - 1;
         String title = channelMenusBean.getName();
         if (TextUtils.isEmpty(title)) {
             title = PolyvCloudClassHomeActivity.this.getString(R.string.chat_tab_group_chat_text_default);
@@ -980,7 +1140,7 @@ public class PolyvCloudClassHomeActivity extends PolyvBaseActivity
         chatPagerAdapter.add(chatPrivateFragment);
 
         // 创建 chatPrivateFragment 对象对应的 tabbar item
-        int index = chatPagerAdapter.getCount()-1;
+        int index = chatPagerAdapter.getCount() - 1;
         String title = channelMenusBean.getName();
         if (TextUtils.isEmpty(title)) {
             title = PolyvCloudClassHomeActivity.this.getString(R.string.chat_tab_personal_chat_text_default);
@@ -1002,8 +1162,9 @@ public class PolyvCloudClassHomeActivity extends PolyvBaseActivity
         TextView personalChatItemTv = (TextView) rl.findViewById(R.id.tv_live_chat_item);
         personalChatItemTv.setText(title);
 
-        LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT,
+        LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT,
                 ViewGroup.LayoutParams.MATCH_PARENT);
+        lp.weight = 1;
         parent.addView(rl, lp);
 
         return rl;
@@ -1020,6 +1181,19 @@ public class PolyvCloudClassHomeActivity extends PolyvBaseActivity
             }
         }
     };
+
+    private void scrollToVisibleTab(View v) {
+        if (v.getParent().getParent() instanceof ViewGroup) {
+            ViewGroup vg = (ViewGroup) v.getParent().getParent();
+            int[] location = new int[2];
+            v.getLocationInWindow(location);
+            if (location[0] < 0) {
+                vg.scrollTo(0, 0);
+            } else if (location[0] + v.getWidth() > ScreenUtils.getScreenWidth()) {
+                vg.scrollTo(((ViewGroup) v.getParent()).getChildAt(((ViewGroup) v.getParent()).getChildCount() - 1).getRight(), 0);
+            }
+        }
+    }
 
     private void refreshChatPagerAdapter() {
         if (chatPagerAdapter.getCount() > 0) {
@@ -1039,22 +1213,42 @@ public class PolyvCloudClassHomeActivity extends PolyvBaseActivity
 
     // <editor-fold defaultstate="collapsed" desc="聊天室登录">
     private void loginChatRoom() {
-
-        PolyvChatEventBus.clear();
+        PolyvSingleRelayBus.clear();
         chatManager.setAccountId(userId);
         //先添加监听器再登录
         chatManager.addConnectStatusListener(new PolyvConnectStatusListener() {
             @Override
             public void onConnectStatusChange(int status, @Nullable Throwable t) {
                 //由于登录成功后，Fragment可能还没初始化完成，所以这里使用Rxjava的ReplayRelay把信息保存下来，在Fragment初始化完成那里获取
-                PolyvChatEventBus.get().post(new PolyvChatBaseFragment.ConnectStatus(status, t));
+//                PolyvChatEventBus.get().post(new PolyvChatBaseFragment.ConnectStatus(status, t));
+                PolyvSingleRelayBus.get().post(new PolyvChatBaseFragment.ConnectStatus(status, t));
             }
         });
         chatManager.addNewMessageListener(new PolyvNewMessageListener2() { // 用于监听登录的相关消息
             @Override
             public void onNewMessage(String message, String event, String socketListen) {
                 //由于登录成功后，Fragment可能还没初始化完成，所以这里使用Rxjava的ReplayRelay把信息保存下来，在Fragment初始化完成那里获取
-                PolyvChatEventBus.get().post(new PolyvChatBaseFragment.EventMessage(message, event, socketListen));
+//                PolyvChatEventBus.get().post(new PolyvChatBaseFragment.EventMessage(message, event, socketListen));
+                PolyvRxBus.get().post(new PolyvChatBaseFragment.EventMessage(message, event, socketListen));
+
+                final PolyvReloginEvent reloginEvent = PolyvEventHelper.getEventObject(PolyvReloginEvent.class, message, event);
+                if (reloginEvent != null) {
+                    if (chatManager.userId.equals(reloginEvent.getUser().getUserId())) {
+                        if (livePlayerHelper != null) {
+                            livePlayerHelper.destory();
+                            livePlayerHelper = null;
+                        }
+                        if (playbackVideoHelper != null) {
+                            playbackVideoHelper.destory();
+                            playbackVideoHelper = null;
+                        }
+                        if (chatManager != null) {
+                            chatManager.destroy();
+                            chatManager = null;
+                        }
+                    }
+                }
+
             }
 
             @Override
@@ -1081,22 +1275,31 @@ public class PolyvCloudClassHomeActivity extends PolyvBaseActivity
             public void onDestroy() {
             }
         });
+        // 用于监听用户发送消息涉及了违规词的提示
+        chatManager.setProhibitedWordListener(new IPolyvProhibitedWordListener() {
+            @Override
+            public void onSendProhibitedWord(@NonNull String prohibitedMessage, @NonNull String hintMsg, @NonNull String status) {
+                PolyvCommonLog.d(TAG, "聊天消息含有违规词：" + prohibitedMessage);
+                ToastUtils.showShort(hintMsg);
+            }
+        });
 
         //设置字体聊天室字体颜色
-        PolyvChatUIConfig.FontColor.set(PolyvChatUIConfig.FontColor.USER_ASSISTANT, Color.BLUE);
-        PolyvChatUIConfig.FontColor.set(PolyvChatUIConfig.FontColor.USER_MANAGER,Color.BLUE);
-        PolyvChatUIConfig.FontColor.set(PolyvChatUIConfig.FontColor.USER_TEACHER,Color.BLUE);
+//        PolyvChatUIConfig.FontColor.set(PolyvChatUIConfig.FontColor.USER_ASSISTANT, Color.BLUE);
+//        PolyvChatUIConfig.FontColor.set(PolyvChatUIConfig.FontColor.USER_MANAGER,Color.BLUE);
+//        PolyvChatUIConfig.FontColor.set(PolyvChatUIConfig.FontColor.USER_TEACHER,Color.BLUE);
 
         //TODO 登录聊天室(userId：学员的Id(聊天室用户的唯一标识，非直播后台的userId，不同的学员应当使用不同的userId)，roomId：频道号，nickName：学员的昵称)
-        //TODO 登录聊天室后一些功能才可以正常使用，例如：连麦
+        //TODO 登录聊天室后一些功能才可以正常使用，例如：连麦,PPT
 
         //根据直播类型(普通直播、三分屏直播)设置聊天室的学员的类型
         chatManager.userType = isNormalLive ? PolyvChatManager.USERTYPE_STUDENT : PolyvChatManager.USERTYPE_SLICE;
-        if(isParticipant){
+        if (isParticipant) {
             chatManager.userType = USERTYPE_VIEWER;
         }
         chatManager.login(viewerId, channelId, viewerName);
-
+        //TODO 可给互动应用添加自定义param4，param5的统计数据，建议播放器同步添加参数.buildOptions(PolyvBaseVideoParams.PARAMS4, "P4")
+//        chatManager.login(viewerId,channelId, viewerName, PolyvChatManager.DEFAULT_AVATARURL, null, "TestP4","TestP5");
         if (livePlayerHelper != null) {
             livePlayerHelper.setNickName(viewerName);
         }
@@ -1156,11 +1359,11 @@ public class PolyvCloudClassHomeActivity extends PolyvBaseActivity
         }
 
         //解决由于在全屏下连麦 动画效果异常 返回竖屏后需要正常显示连麦区域
-        if(newConfig.orientation == Configuration.ORIENTATION_PORTRAIT){
+        if (newConfig.orientation == Configuration.ORIENTATION_PORTRAIT) {
             compositeDisposable.add(PolyvRxTimer.delay(2000, new Consumer<Long>() {
                 @Override
                 public void accept(Long aLong) throws Exception {
-                    if(fullScreenDown && livePlayerHelper.isJoinLinkMick()){//如果全屏下 聊天室没有置底
+                    if (fullScreenDown && livePlayerHelper.isJoinLinkMick()) {//如果全屏下 聊天室没有置底
                         downChatLayout(chatContainerLayout);
                         fullScreenDown = false;
                     }
@@ -1173,10 +1376,20 @@ public class PolyvCloudClassHomeActivity extends PolyvBaseActivity
     // <editor-fold defaultstate="collapsed" desc="IPolyvHomePresnter实现">
     @Override
     public String getSessionId() {
-        if (playMode == PLAYMODE_LIVE && livePlayerHelper != null) {
-            if (livePlayerHelper.getVideoView() != null && livePlayerHelper.getVideoView().getModleVO() != null) {
-                return livePlayerHelper.getVideoView().getModleVO().getChannelSessionId();
-            }
+        if (getVideoView() instanceof PolyvCloudClassVideoView && getVideoView().getModleVO() != null) {
+            return ((PolyvCloudClassVideoView) getVideoView()).getModleVO().getChannelSessionId();
+        } else if (getVideoView() instanceof PolyvPlaybackVideoView && getVideoView().getModleVO() != null) {
+            return ((PolyvPlaybackVideoView) getVideoView()).getModleVO().getChannelSessionId();
+        }
+        return null;
+    }
+
+    @Override
+    public PolyvCommonVideoView getVideoView() {
+        if (playMode == PolyvPlayOption.PLAYMODE_LIVE && livePlayerHelper != null) {
+            return livePlayerHelper.getVideoView();
+        } else if (playMode == PolyvPlayOption.PLAYMODE_VOD && playbackVideoHelper != null) {
+            return playbackVideoHelper.getVideoView();
         }
         return null;
     }
@@ -1230,20 +1443,20 @@ public class PolyvCloudClassHomeActivity extends PolyvBaseActivity
     @Override
     public void moveChatLocation(boolean downChat) {
 
-        if(teacherInfoLayout != null){
-            teacherInfoLayout.setVisibility(downChat?View.GONE:(livePlayerHelper.getVideoView().isOnline()?View.VISIBLE:View.GONE));
+        if (teacherInfoLayout != null) {
+            teacherInfoLayout.setVisibility(downChat ? View.GONE : (livePlayerHelper.getVideoView().isOnline() ? View.VISIBLE : View.GONE));
         }
 
-        if(downChat){
+        if (downChat) {
             downChatLayout(chatContainerLayout);
-        }else {
+        } else {
             upChatLayout(chatContainerLayout);
         }
     }
 
     @Override
     public void updatePaintStatus(boolean showPaint) {
-        if(linkMicParent != null){
+        if (linkMicParent != null) {
             linkMicParent.hideBrushColor(showPaint);
         }
     }

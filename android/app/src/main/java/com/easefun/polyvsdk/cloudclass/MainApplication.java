@@ -1,7 +1,7 @@
 package com.easefun.polyvsdk.cloudclass;
 
+import com.easefun.polyv.cloudclass.config.PolyvLiveSDKClient;
 import com.easefun.polyv.cloudclassdemo.PolyvCloudClassApp;
-import com.easefun.polyv.foundationsdk.utils.PolyvAppUtils;
 import com.polyv.rn.PolyvCloudClassRNPackage;
 import com.facebook.react.ReactApplication;
 import com.swmansion.gesturehandler.react.RNGestureHandlerPackage;
@@ -45,7 +45,7 @@ public class MainApplication extends PolyvCloudClassApp implements ReactApplicat
 
   @Override
   public void onCreate() {
-    PolyvAppUtils.init(this);
+    PolyvLiveSDKClient.getInstance().initContext(this);
     super.onCreate();
     SoLoader.init(this, /* native exopackage */ false);
   }

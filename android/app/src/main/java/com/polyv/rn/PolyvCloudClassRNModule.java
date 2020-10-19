@@ -10,8 +10,10 @@ import com.easefun.polyv.businesssdk.model.chat.PolyvChatDomain;
 import com.easefun.polyv.businesssdk.model.video.PolyvPlayBackVO;
 import com.easefun.polyv.businesssdk.service.PolyvLoginManager;
 import com.easefun.polyv.businesssdk.vodplayer.PolyvVodSDKClient;
+import com.easefun.polyv.cloudclass.chat.PolyvChatApiRequestHelper;
 import com.easefun.polyv.cloudclass.config.PolyvLiveSDKClient;
 import com.easefun.polyv.cloudclass.config.PolyvVClassGlobalConfig;
+import com.easefun.polyv.cloudclass.model.PolyvLiveClassDetailVO;
 import com.easefun.polyv.cloudclass.model.PolyvLiveStatusVO;
 import com.easefun.polyv.cloudclass.net.PolyvApiManager;
 import com.easefun.polyv.cloudclassdemo.watch.PolyvCloudClassHomeActivity;
@@ -32,6 +34,7 @@ import com.facebook.react.bridge.WritableMap;
 import java.io.IOException;
 
 import io.reactivex.disposables.Disposable;
+import io.reactivex.functions.Consumer;
 import retrofit2.adapter.rxjava2.HttpException;
 
 import static com.polyv.rn.PolyvErrorCode.channleLoadFailed;
@@ -44,7 +47,10 @@ import static com.polyv.rn.PolyvErrorCode.channleLoadFailed;
 public class PolyvCloudClassRNModule extends ReactContextBaseJavaModule {
     private static final String TAG = "PolyvRNCloudClassLoginModule";
     private ProgressDialog progress;
-    private Disposable getTokenDisposable, verifyDispose;
+    private Disposable getTokenDisposable, verifyDispose, liveDetailDisposable;
+
+    //是否是参与者
+    private boolean isParticipant = false;
 
     public PolyvCloudClassRNModule(ReactApplicationContext reactContext) {
         super(reactContext);
@@ -250,9 +256,23 @@ public class PolyvCloudClassRNModule extends ReactContextBaseJavaModule {
                         String[] dataArr = data.split(",");
 
                         boolean isAlone = "alone".equals(dataArr[1]);//是否有ppt
-                        sendSuccessMessage(promise);
-                        startActivityForLive(userId, channelId, isAlone);
-                        progress.dismiss();
+
+                        requestLiveDetail(channelId, promise, new Consumer<String>() {
+                            @Override
+                            public void accept(String rtcType) throws Exception {
+                                progress.dismiss();
+                                if (isParticipant) {
+                                    if ("urtc".equals(rtcType) || TextUtils.isEmpty(rtcType)) {
+                                        ToastUtils.showShort("暂不支持该频道观看");
+                                        return;
+                                    }
+                                }
+                                sendSuccessMessage(promise);
+                                startActivityForLive(userId, channelId, isAlone, rtcType);
+                                progress.dismiss();
+                            }
+                        });
+
                     }
 
                     @Override
@@ -269,20 +289,43 @@ public class PolyvCloudClassRNModule extends ReactContextBaseJavaModule {
                 });
     }
 
+    private void requestLiveDetail(String channelId,Promise promise, final Consumer<String> onSuccess) {
+        if (liveDetailDisposable != null) {
+            liveDetailDisposable.dispose();
+        }
+        liveDetailDisposable = PolyvResponseExcutor.excuteUndefinData(PolyvChatApiRequestHelper.getInstance()
+                .requestLiveClassDetailApi(channelId), new PolyvrResponseCallback<PolyvLiveClassDetailVO>() {
+            @Override
+            public void onSuccess(PolyvLiveClassDetailVO polyvLiveClassDetailVO) {
+                try {
+                    onSuccess.accept(polyvLiveClassDetailVO.getData().getRtcType());
+                } catch (Exception e) {
+                    e.printStackTrace();
+                }
+            }
+
+            @Override
+            public void onError(Throwable e) {
+                super.onError(e);
+                errorStatus(e, promise);
+            }
+        });
+    }
+
     private String getTrim(String playbackUserId) {
         return playbackUserId.trim();
     }
 
     // <editor-fold defaultstate="collapsed" desc="startActivity">
-    private void startActivityForLive(String userId, String channelId, boolean isAlone) {
-        PolyvCloudClassHomeActivity.startActivityForLive(getCurrentActivity(),
-                getTrim(channelId), userId, isAlone);
+    private void startActivityForLive(String userId, String channelId, boolean isAlone, String rtcType) {
+        PolyvCloudClassHomeActivity.startActivityForLiveWithParticipant(getCurrentActivity(),
+                getTrim(channelId), userId, isAlone, isParticipant, rtcType);
     }
 
     private void startActivityForPlayback(String playbackVideoId,String playbackChannelId,String playbackUserId, boolean isNormalLivePlayBack) {
         progress.dismiss();
         PolyvCloudClassHomeActivity.startActivityForPlayBack(getCurrentActivity(),
-                getTrim(playbackVideoId), getTrim(playbackChannelId), getTrim(playbackUserId), isNormalLivePlayBack);
+                getTrim(playbackVideoId), getTrim(playbackChannelId), getTrim(playbackUserId), isNormalLivePlayBack,0);
     }
     // </editor-fold>
 }

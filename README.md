@@ -7,7 +7,7 @@ PolyvRNCloudClassDemo 支持 Android + iOS， 是专为 ReactNative 技术开发
 
 ### 1.1 支持设备
 
-Android 4.1.0 (API 16) 以上 或 iOS 9.0 以上
+Android 5.0 (API>=21) 以上 或 iOS 9.0 以上
 
 ### 1.2 接入条件
 
@@ -192,18 +192,18 @@ allprojects {
         }
         
         //polyv依赖配置
-        maven { url 'https://dl.bintray.com/polyv/abn' }
+        maven { url 'https://dl.bintray.com/polyv/android' }
     }
 }
 
 //相关系统依赖版本
 ext {
     supportLibVersion = "27.1.1"
-    compileSdkVersion = 27
-    minSdkVersion = 16
-    targetSdkVersion = 27
-    versionCode = 8202
-    versionName = "0.8.2.02"
+    compileSdkVersion = 29
+    minSdkVersion = 21
+    targetSdkVersion = 29
+    versionCode = 152
+    versionName = "0.15.2"
 }
 
 ```
@@ -227,7 +227,7 @@ compileOptions {
     }
 ```
 2、原生代码集成
- 1. 在目标工程中的 android/app/src/main/java 目录下，增加 com 目录，形成 android/app/src/main/java/com 的目录结构（如果已有com目录，可跳过本步骤）；
+   1. 在目标工程中的 android/app/src/main/java 目录下，增加 com 目录，形成 android/app/src/main/java/com 的目录结构（如果已有com目录，可跳过本步骤）；
 
    2. 把 android/app/src/main/java/com/polyv文件夹 拷贝到 上面创建的 com目录 下；
 
@@ -245,11 +245,18 @@ compileOptions {
                           new ReanimatedPackage(),
                   );
               }
+      
+        			@Override
+              public void onCreate() {
+          			super.onCreate();
+                PolyvLiveSDKClient.getInstance().initContext(this); // 新增加的一行！
+                SoLoader.init(this, /* native exopackage */ false);
+              }
+      
       ```
 
-      4.MainActivity配置
-
-      ```java
+   4.MainActivity配置
+   ```java
       //如果添加导航栏控件需要重写以下方法
        @Override
     protected ReactActivityDelegate createReactActivityDelegate() {
@@ -259,8 +266,8 @@ compileOptions {
                 return new RNGestureHandlerEnabledRootView(MainActivity.this);
             }
         };
-    }
-      ```
+       }
+   ```
 
 ### 2.3 iOS 端集成
 
@@ -333,4 +340,3 @@ static BOOL RCTParseUnused(const char **input)
          RCTReadString(input, "__attribute__((unused))");
 }
 ```
-

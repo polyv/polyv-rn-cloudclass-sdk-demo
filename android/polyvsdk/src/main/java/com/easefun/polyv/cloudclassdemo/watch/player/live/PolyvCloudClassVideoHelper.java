@@ -27,6 +27,7 @@ import com.easefun.polyv.cloudclass.chat.PolyvChatManager;
 import com.easefun.polyv.cloudclass.chat.PolyvNewMessageListener;
 import com.easefun.polyv.cloudclass.chat.event.PolyvEventHelper;
 import com.easefun.polyv.cloudclass.chat.event.PolyvLoginEvent;
+import com.easefun.polyv.cloudclass.chat.event.PolyvSendCupEvent;
 import com.easefun.polyv.cloudclass.chat.event.PolyvTeacherInfo;
 import com.easefun.polyv.cloudclass.chat.event.linkmic.PolyvJoinLeaveSEvent;
 import com.easefun.polyv.cloudclass.chat.event.linkmic.PolyvJoinRequestSEvent;
@@ -62,9 +63,12 @@ import com.easefun.polyv.linkmic.PolyvLinkMicWrapper;
 import com.easefun.polyv.linkmic.model.PolyvLinkMicJoinStatus;
 import com.easefun.polyv.linkmic.model.PolyvLinkMicSwitchView;
 import com.easefun.polyv.thirdpart.blankj.utilcode.util.ActivityUtils;
+import com.easefun.polyv.thirdpart.blankj.utilcode.util.LogUtils;
 import com.easefun.polyv.thirdpart.blankj.utilcode.util.ScreenUtils;
 import com.easefun.polyv.thirdpart.blankj.utilcode.util.ToastUtils;
 import com.easefun.polyv.thirdpart.blankj.utilcode.util.Utils;
+import com.plv.rtc.PLVARTCAudioVolumeInfo;
+import com.plv.rtc.PLVARTCConstants;
 
 import java.util.ArrayList;
 import java.util.HashSet;
@@ -74,8 +78,6 @@ import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 
-import io.agora.rtc.IRtcEngineEventHandler;
-import io.agora.rtc.video.VideoCanvas;
 import io.reactivex.disposables.CompositeDisposable;
 import io.reactivex.disposables.Disposable;
 import io.reactivex.functions.Consumer;
@@ -87,6 +89,7 @@ import static com.easefun.polyv.businesssdk.api.common.ppt.PolyvCloudClassPPTPro
 import static com.easefun.polyv.businesssdk.api.common.ppt.PolyvCloudClassPPTProcessor.CHAT_LOGIN;
 import static com.easefun.polyv.businesssdk.api.common.ppt.PolyvCloudClassPPTProcessor.ERASE_STATUS;
 import static com.easefun.polyv.businesssdk.api.common.ppt.PolyvCloudClassPPTProcessor.PPT_PAINT_STATUS;
+import static com.easefun.polyv.businesssdk.api.common.ppt.PolyvCloudClassPPTProcessor.SETSEIDATA;
 import static com.easefun.polyv.businesssdk.model.ppt.PolyvPPTAuthentic.PermissionType.VOICE;
 import static com.easefun.polyv.businesssdk.sp.PolyvPreConstant.LINK_MIC_TOKEN;
 import static com.easefun.polyv.cloudclass.PolyvSocketEvent.ONSLICECONTROL;
@@ -94,7 +97,7 @@ import static com.easefun.polyv.cloudclass.PolyvSocketEvent.ONSLICEID;
 import static com.easefun.polyv.cloudclass.PolyvSocketEvent.OPEN_MICROPHONE;
 import static com.easefun.polyv.cloudclass.chat.PolyvChatManager.EVENT_LOGIN;
 import static com.easefun.polyv.cloudclass.chat.PolyvChatManager.EVENT_MUTE_USER_MICRO;
-import static com.easefun.polyv.cloudclass.chat.PolyvChatManager.EVENT_RELOGIN;
+import static com.easefun.polyv.cloudclass.chat.PolyvChatManager.EVENT_REJOIN_MIC;
 import static com.easefun.polyv.cloudclass.chat.PolyvChatManager.O_TEACHER_INFO;
 import static com.easefun.polyv.cloudclass.chat.PolyvChatManager.SE_JOIN_LEAVE;
 import static com.easefun.polyv.cloudclass.chat.PolyvChatManager.SE_JOIN_REQUEST;
@@ -121,7 +124,7 @@ public class PolyvCloudClassVideoHelper extends PolyvCommonVideoHelper<PolyvClou
     private static final String JOIN_DEFAULT_TYPE = "JOIN_DEFAULT_TYPE";
 
     protected PolyvChatManager polyvChatManager;
-    private Disposable linkJoinTimer, getLinkMicJoins;
+    private Disposable linkJoinTimer, getLinkMicJoins,delayToJoinAsParticipant;
     private static final int REQUEST_CODE = 612;
     private boolean joinSuccess, subShowPPT;//连麦是否显示再大屏
 
@@ -173,6 +176,9 @@ public class PolyvCloudClassVideoHelper extends PolyvCommonVideoHelper<PolyvClou
     //ppt授權信息
     private PolyvPPTAuthentic polyvPPTAuthentic;
 
+    private int curMusicStreamVolume =-1;
+    private int sendJoinRequestTime = 0;
+
     public PolyvCloudClassVideoHelper(PolyvCloudClassVideoItem videoItem,
                                       PolyvPPTItem polyvPPTItem, PolyvChatManager polyvChatManager, String channelId) {
         super(videoItem, polyvPPTItem);
@@ -190,6 +196,8 @@ public class PolyvCloudClassVideoHelper extends PolyvCommonVideoHelper<PolyvClou
                 .opstrs(ops)
                 .addRequestCode(REQUEST_CODE)
                 .setPermissionsListener(this);
+
+        registerSocketEventListener();
     }
 
     @Override
@@ -263,6 +271,7 @@ public class PolyvCloudClassVideoHelper extends PolyvCommonVideoHelper<PolyvClou
                     ActivityUtils.getTopActivity().finish();
                 }
             }
+
         });
 
     }
@@ -278,12 +287,16 @@ public class PolyvCloudClassVideoHelper extends PolyvCommonVideoHelper<PolyvClou
         }
     }
 
-    public void sendJoinRequest() {
-        supportRTC = videoView.getModleVO() != null ? videoView.getModleVO().isSupportRTCLive() : false;
+    private void initSupportRTC(){
+        supportRTC = videoView.getModleVO() != null && videoView.getModleVO().isSupportRTCLive();
         if(showPPT){
             //三分屏默认是rtc流
             supportRTC = true;
         }
+    }
+
+    public void sendJoinRequest() {
+        initSupportRTC();
         linkMicLayoutParent.setSupportRtc(supportRTC);
         createLinkMicLayout(linkMicLayout, supportRTC)                                                                                                           ;
 
@@ -296,10 +309,20 @@ public class PolyvCloudClassVideoHelper extends PolyvCommonVideoHelper<PolyvClou
             linkMicParent.updateLinkController( !isAudio);
             polyvLinkMicAdapter.bindLinkMicFrontView(linkMicLayoutParent.getOwnView());
         }
-        PolyvLinkMicWrapper.getInstance().muteLocalVideo("audio".equals(videoView.getLinkMicType()));
+        if (sendJoinRequestTime==0){
+            PolyvRxTimer.delay(1500, new Consumer<Object>() {
+                @Override
+                public void accept(Object o) throws Exception {
+                    PolyvLinkMicWrapper.getInstance().enableLocalVideo(!"audio".equals(videoView.getLinkMicType()));
+                }
+            });
+        }else {
+            PolyvLinkMicWrapper.getInstance().enableLocalVideo(!"audio".equals(videoView.getLinkMicType()));
+        }
         if (polyvChatManager != null) {
             polyvChatManager.sendJoinRequestMessage(PolyvLinkMicWrapper.getInstance().getLinkMicUid());
         }
+        sendJoinRequestTime++;
     }
 
     public void leaveChannel() {
@@ -311,7 +334,9 @@ public class PolyvCloudClassVideoHelper extends PolyvCommonVideoHelper<PolyvClou
 
     @Override
     public void restartPlay() {
-        videoItem.showScreenShotView();
+        if (videoItem != null) {
+            videoItem.showScreenShotView();
+        }
         super.restartPlay();
     }
 
@@ -323,20 +348,21 @@ public class PolyvCloudClassVideoHelper extends PolyvCommonVideoHelper<PolyvClou
             }
             return;
         }
-        muteVideoView();
+//        muteVideoView();
     }
 
     private void muteVideoView() {
         //防止连麦以后静音 然后退到后台又静音得问题
-        if (videoView != null && videoView.isPlaying()) {
-            videoViewVolume = videoView.getVolume();
-            videoView.setVolume(0);
+        if (videoView != null && videoView.isPlaying() && videoView.getIjkMediaPlayer() != null) {
+//            videoViewVolume = videoView.getVolume();
+//            videoView.setVolume(0);
+            videoView.getIjkMediaPlayer().setVolume(0, 0);
         }
     }
 
     @Override
     public void resume() {
-        openVideoViewSound();
+//        openVideoViewSound();
         if (joinSuccess) {
             return;
         }
@@ -386,9 +412,25 @@ public class PolyvCloudClassVideoHelper extends PolyvCommonVideoHelper<PolyvClou
 
         } else if (TEACHER_SET_PERMISSION.equals(event)) {
             processBrushPermission(message, event);
+        } else if(SE_SWITCH_PPT_MESSAGE.equals(event)){
+            processSwitchPPTMessage(message, event);
         }
     }
 
+    private void processSwitchPPTMessage(String message, String event) {
+        final PolyvPPTAuthentic pptAuthentic = PolyvGsonUtil.fromJson(PolyvPPTAuthentic.class, message);
+
+        S_HANDLER.post(new Runnable() {
+            @Override
+            public void run() {
+                if("1".equals(pptAuthentic.getStatus()) && !controller.isShowPPTSubView()){
+                    controller.changePPTVideoLocation();
+                }else if("0".equals(pptAuthentic.getStatus()) && controller.isPPTSubView()){
+                    controller.changePPTVideoLocation();
+                }
+            }
+        });
+    }
 
     private void sendReJoinMessage() {
         if(!joinSuccess){
@@ -398,7 +440,7 @@ public class PolyvCloudClassVideoHelper extends PolyvCommonVideoHelper<PolyvClou
         if(!TextUtils.isEmpty(token)){
             PolyvLinkMicToken linkMicToken = PolyvGsonUtil.fromJson(PolyvLinkMicToken.class,token);
             if((System.currentTimeMillis() - linkMicToken.getTs()) < TOKEN_VALIDATE){
-                polyvChatManager.sendScoketMessage(EVENT_RELOGIN,linkMicToken.getToken());
+                polyvChatManager.sendScoketMessage(EVENT_REJOIN_MIC,linkMicToken.getToken());
             }
         }
     }
@@ -448,14 +490,24 @@ public class PolyvCloudClassVideoHelper extends PolyvCommonVideoHelper<PolyvClou
             PolyvCommonLog.d(TAG, "userid :" + PolyvChatManager.getInstance().userId);
             //是否是参与者
             if (VOICE.equals(polyvPPTAuthentic.getType())) {
+                //是否被邀请上麦
+                boolean isInvitedToLinkMic=polyvPPTAuthentic.hasVoicePermission();
 
                 //如果是自己被上下麦 更新底部栏
                 if(polyvPPTAuthentic.getUserId().equals(PolyvChatManager.getInstance().userId) && isParticipant){
-                    linkMicParent.updateBottomController(polyvPPTAuthentic.hasVoicePermission());
+                    linkMicParent.updateBottomController(isInvitedToLinkMic);
                     //对于上下麦需要进行静音操作
-                    PolyvLinkMicWrapper.getInstance().muteLocalAudio(!polyvPPTAuthentic.hasVoicePermission());
+                    PolyvLinkMicWrapper.getInstance().muteLocalAudio(!isInvitedToLinkMic);
+                    PolyvLinkMicWrapper.getInstance().muteLocalVideo(!isInvitedToLinkMic);
+                    if (isInvitedToLinkMic){
+                        //被邀请上麦后，设为主播角色
+                        PolyvLinkMicWrapper.getInstance().switchRoleToBroadcaster();
+                    }else {
+                        //被下麦后，设为观众角色
+                        PolyvLinkMicWrapper.getInstance().switchRoleToAudience();
+                    }
                 }
-                if(polyvPPTAuthentic.hasVoicePermission()){
+                if(isInvitedToLinkMic){
                     PolyvJoinInfoEvent joinInfoEvent = joinRequests.get(polyvPPTAuthentic.getUserId());
                     if (joinInfoEvent != null) {
                         PolyvJoinInfoEvent.ClassStatus classStatus = joinInfoEvent.getClassStatus();
@@ -517,7 +569,8 @@ public class PolyvCloudClassVideoHelper extends PolyvCommonVideoHelper<PolyvClou
 
     public void processJoinResponseMessage() {
         PolyvLinkMicWrapper.getInstance().joinChannel("");
-        controller.updateLinkMicStatus(true);
+        controller.enableLinkBtn(true);
+        controller.updateLinkBtn2Ready(true);
         startLinkTimer(false);
     }
 
@@ -543,6 +596,20 @@ public class PolyvCloudClassVideoHelper extends PolyvCommonVideoHelper<PolyvClou
         }
 
         getLinkMicJoins(false);
+    }
+
+    public String getSessionId() {
+        if (videoView != null && videoView.getModleVO() != null && videoView.getModleVO().getChannelSessionId() != null) {
+            return videoView.getModleVO().getChannelSessionId();
+        }
+        return sessionId;
+    }
+
+    public String getRoomId() {
+        if (videoView != null && videoView.getModleVO() != null && videoView.getModleVO().getChannelId() != 0) {
+            return videoView.getModleVO().getChannelId() + "";
+        }
+        return roomId;
     }
 
     /**
@@ -636,7 +703,7 @@ public class PolyvCloudClassVideoHelper extends PolyvCommonVideoHelper<PolyvClou
                         }
                     }
                 },
-                roomId, sessionId,true
+                getRoomId(), getSessionId(),true
         );
     }
 
@@ -724,7 +791,7 @@ public class PolyvCloudClassVideoHelper extends PolyvCommonVideoHelper<PolyvClou
             S_HANDLER.post(new Runnable() {
                 @Override
                 public void run() {
-                    controller.updateLinkMicStatus(false);
+                    controller.updateLinkBtn2Ready(false);
                     controller.enableLinkBtn(true);
                 }
             });
@@ -761,7 +828,9 @@ public class PolyvCloudClassVideoHelper extends PolyvCommonVideoHelper<PolyvClou
             S_HANDLER.post(new Runnable() {
                 @Override
                 public void run() {
-                    controller.enableLinkBtn(false);
+                    if (controller != null) {
+//                        controller.enableLinkBtn(false);
+                    }
                 }
             });
 
@@ -806,6 +875,30 @@ public class PolyvCloudClassVideoHelper extends PolyvCommonVideoHelper<PolyvClou
         }
     }
 
+    private void registerSocketEventListener() {
+        PolyvChatManager.getInstance().addNewMessageListener(new PolyvNewMessageListener() {
+            @Override
+            public void onNewMessage(String message, String event) {
+                if (PolyvChatManager.EVENT_SEND_CUP.equals(event)) {
+                    PolyvSendCupEvent sendCupEvent = PolyvEventHelper.getEventObject(PolyvSendCupEvent.class, message, event);
+                    if (sendCupEvent != null && sendCupEvent.getOwner() != null && sendCupEvent.getOwner().getUserId() != null) {
+                        if (joinRequests != null) {
+                            for (PolyvJoinInfoEvent joinInfoEvent : joinRequests.values()) {
+                                if (sendCupEvent.getOwner().getUserId().equals(joinInfoEvent.getLoginId())) {
+                                    joinInfoEvent.setCupNum(sendCupEvent.getOwner().getNum());
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+
+            @Override
+            public void onDestroy() {
+            }
+        });
+    }
+
     private void processLeaveMessage(String userId) {
 
         if (userId.equals(PolyvLinkMicWrapper.getInstance().getLinkMicUid())) {
@@ -815,7 +908,9 @@ public class PolyvCloudClassVideoHelper extends PolyvCommonVideoHelper<PolyvClou
                 @Override
                 public void run() {
                     ToastUtils.showLong("关闭连麦");
-                    controller.updateLinkMicStatus(false);
+                    if (controller!=null){
+                        controller.updateLinkBtn2Ready(false);
+                    }
                     startLinkTimer(true);
                     linkMicLayout.setKeepScreenOn(false);
                 }
@@ -834,10 +929,16 @@ public class PolyvCloudClassVideoHelper extends PolyvCommonVideoHelper<PolyvClou
             public void accept(Long l) throws Exception {
                 if (leave) {
                     PolyvLinkMicWrapper.getInstance().leaveChannel();
-                    controller.updateLinkMicStatus(false);
+                    if (controller!=null){
+                        controller.updateLinkBtn2Ready(false);
+//                        controller.enableLinkBtn(false);
+                    }
                 } else {
 //                    PolyvLinkMicWrapper.getInstance().joinChannel("");
-                    controller.updateLinkMicStatus(true);
+                    if (controller!=null){
+                        controller.updateLinkBtn2Ready(true);
+                        controller.enableLinkBtn(true);
+                    }
                 }
             }
         });
@@ -852,11 +953,14 @@ public class PolyvCloudClassVideoHelper extends PolyvCommonVideoHelper<PolyvClou
             viewerJoinLinkDispose.dispose();
             viewerJoinLinkDispose = null;
         }
+
     }
 
     @Override
     public void onDestroy() {
-
+        if (delayToJoinAsParticipant!=null){
+            delayToJoinAsParticipant.dispose();
+        }
         PolyvDemoClient.getInstance().onDestory();
     }
 
@@ -949,12 +1053,14 @@ public class PolyvCloudClassVideoHelper extends PolyvCommonVideoHelper<PolyvClou
 
     PolyvLinkMicAGEventHandler polyvLinkMicAGEventHandler = new PolyvLinkMicAGEventHandler() {
         @Override
-        public void onAudioVolumeIndication(final IRtcEngineEventHandler.AudioVolumeInfo[] speakers, final int totalVolume) {
+        public void onAudioVolumeIndication(final PLVARTCAudioVolumeInfo[] speakers, final int totalVolume) {
             super.onAudioVolumeIndication(speakers, totalVolume);
             S_HANDLER.post(new Runnable() {
                 @Override
                 public void run() {
-                    polyvLinkMicAdapter.startAudioWave(speakers, totalVolume);
+                    if (polyvLinkMicAdapter != null) {
+                        polyvLinkMicAdapter.startAudioWave(speakers, totalVolume);
+                    }
                 }
             });
         }
@@ -988,9 +1094,11 @@ public class PolyvCloudClassVideoHelper extends PolyvCommonVideoHelper<PolyvClou
                     long longUid = uid & 0xFFFFFFFFL;
                     if(!isParticipant){
                         polyvLinkMicAdapter.addOwner(longUid + "", joinRequests.get(longUid + ""));
+                        linkMicParent.updateBottomController(true);
                     }else {
                         linkMicParent.updateBottomController(false);
                         PolyvLinkMicWrapper.getInstance().muteLocalAudio(true);
+                        PolyvLinkMicWrapper.getInstance().muteLocalVideo(true);
                     }
                     //显示RTC连麦区域
                     showRtcView(true, teacherId);
@@ -1000,8 +1108,11 @@ public class PolyvCloudClassVideoHelper extends PolyvCommonVideoHelper<PolyvClou
                     cancleLinkTimer();
                     //隐藏副屏幕
                     hideSubView(true);
+                    //更新控制栏得连麦状态
+                    updateLinkMicStatus(true);
                     //暂停cdn流
                     pause();
+                    muteMusicStreamWhenJoinChannel();
                     //显示连麦区域
                     changeViewToRtc(true);
 
@@ -1009,8 +1120,6 @@ public class PolyvCloudClassVideoHelper extends PolyvCommonVideoHelper<PolyvClou
                     if (pptView != null) {
                         pptView.updateDelayTime(0);
                     }
-                    //更新控制栏得连麦状态
-                    updateLinkMicStatus(true);
                     linkMicLayout.setKeepScreenOn(true);
                     controller.onJoinLinkMic();
                     videoView.setNeedGestureDetector(false);
@@ -1024,7 +1133,7 @@ public class PolyvCloudClassVideoHelper extends PolyvCommonVideoHelper<PolyvClou
         }
 
         @Override
-        public void onLeaveChannel(IRtcEngineEventHandler.RtcStats stats) {
+        public void onLeaveChannel() {
             PolyvCommonLog.d(TAG, "onLeaveChannel");
             S_HANDLER.post(new Runnable() {
                 @Override
@@ -1037,6 +1146,7 @@ public class PolyvCloudClassVideoHelper extends PolyvCommonVideoHelper<PolyvClou
                     updateLinkMicStatus(false);
                     cancleLinkTimer();
                     restartPlay();//restartPlay();
+                    unmuteMusicStreamWhenLeaveChannel();
                     showSubView();
                     changeViewToRtc(false);
                     if (pptView != null) {
@@ -1046,6 +1156,9 @@ public class PolyvCloudClassVideoHelper extends PolyvCommonVideoHelper<PolyvClou
                     joinRequests.remove(PolyvLinkMicWrapper.getInstance().getLinkMicUid());
                     controller.onLeaveLinkMic();
                     videoView.setNeedGestureDetector(true);
+
+                    joinRequests.clear();
+                    noCachesIds.clear();
 
                     //更新聊天室得位置
                     updateChatLocation(false);
@@ -1077,7 +1190,7 @@ public class PolyvCloudClassVideoHelper extends PolyvCommonVideoHelper<PolyvClou
             S_HANDLER.post(new Runnable() {
                 @Override
                 public void run() {
-                    if (TextUtils.isEmpty(roomId)) {
+                    if (TextUtils.isEmpty(getRoomId())) {
                         ToastUtils.showLong("请重新登录 获取正确状态");
                         leaveChannel();
                         return;
@@ -1091,8 +1204,9 @@ public class PolyvCloudClassVideoHelper extends PolyvCommonVideoHelper<PolyvClou
 
         @Override
         public void onUserMuteVideo(int uid, final boolean mute) {
-            long longUid = uid & 0xFFFFFFFFL;
+            final long longUid = uid & 0xFFFFFFFFL;
             final PolyvJoinInfoEvent joinInfo = joinRequests.get(longUid + "");
+            LogUtils.d("onUserMuteVideo");
             S_HANDLER.post(new Runnable() {
                 @Override
                 public void run() {
@@ -1101,30 +1215,28 @@ public class PolyvCloudClassVideoHelper extends PolyvCommonVideoHelper<PolyvClou
                         nick = joinInfo.getNick();
                         int pos = joinInfo.getPos();
                         joinInfo.setMute(mute);
-//                        if (pos != 0) {
-                        if(!polyvLinkMicAdapter.notifyItemChanged(pos, mute)) {
-                            if(mainScreenLinkView != null){
+                        //如果被mute的用户还在列表中，才去执行将他从列表中移除。因为参与者条件下，收到TEACHER_SET_PERMISSION事件后，会将被下麦的观众从列表中移除掉。
+                        if (polyvLinkMicAdapter.getJoinsPos(longUid + "") >= 0) {
+                            if (!polyvLinkMicAdapter.notifyItemChanged(pos, mute)) {
+                                if (mainScreenLinkView != null) {
 
-                                SurfaceView surfaceView = mainScreenLinkView.findViewById(CAMERA_VIEW_ID);
-                                if (surfaceView != null) {
-                                    surfaceView.setVisibility(mute ? INVISIBLE : VISIBLE);
+                                    SurfaceView surfaceView = mainScreenLinkView.findViewById(CAMERA_VIEW_ID);
+                                    if (surfaceView != null) {
+                                        surfaceView.setVisibility(mute ? INVISIBLE : VISIBLE);
+                                    }
                                 }
                             }
                         }
-                        ;
-//                        }
+                    }else {
+                        polyvLinkMicAdapter.addUnhandledMutedVideoUser(longUid+"");
                     }
-                    ToastUtils.showLong(nick + (mute ? "摄像头已关闭" : "摄像头已打开"));
-
-
                 }
             });
-
         }
 
         @Override
         public void onUserMuteAudio(int uid, final boolean mute) {
-            long longUid = uid & 0xFFFFFFFFL;
+            final long longUid = uid & 0xFFFFFFFFL;
             final PolyvJoinInfoEvent joinInfo = joinRequests.get(longUid + "");
 
             S_HANDLER.post(new Runnable() {
@@ -1140,20 +1252,38 @@ public class PolyvCloudClassVideoHelper extends PolyvCommonVideoHelper<PolyvClou
                             if(!polyvLinkMicAdapter.showMicOffLineView(mute, pos)){
                                 if(mainScreenLinkView != null){
                                     View muteView =  mainScreenLinkView.findViewById(R.id.polyv_camera_switch);
-                                    muteView.setVisibility(mute?View.VISIBLE:View.INVISIBLE);
+                                    if(muteView != null){
+                                        muteView.setVisibility(mute?View.VISIBLE:View.INVISIBLE);
+                                    }
                                 }
                             };
                         }
                         PolyvCommonLog.d(TAG, "pos :" + pos);
+                    }else {
+                        polyvLinkMicAdapter.addUnHandledMutedAudioUser(longUid+"");
                     }
-                    ToastUtils.showLong(nick + (mute ? "离开音频连麦" : "加入音频连麦"));
-
                 }
             });
 
         }
 
     };
+
+    private void muteMusicStreamWhenJoinChannel() {
+        curMusicStreamVolume = videoView.getVolume();
+        if (videoView != null) {
+            videoView.setVolume(0);
+        }
+    }
+
+    private void unmuteMusicStreamWhenLeaveChannel() {
+        if (curMusicStreamVolume != -1) {
+            if (videoView != null) {
+                videoView.setVolume(curMusicStreamVolume);
+            }
+        }
+    }
+
 
     private void updateChatLocation(boolean downChat) {
 
@@ -1187,7 +1317,7 @@ public class PolyvCloudClassVideoHelper extends PolyvCommonVideoHelper<PolyvClou
         try {
             if (show) {
                 PolyvLinkMicWrapper.getInstance().setupRemoteVideo(surfaceView,
-                        VideoCanvas.RENDER_MODE_FIT, Integer.valueOf(teacherId));
+                        PLVARTCConstants.RENDER_MODE_FIT, Integer.valueOf(teacherId));
             }
         } catch (Exception e) {
             PolyvCommonLog.exception(e);
@@ -1195,10 +1325,20 @@ public class PolyvCloudClassVideoHelper extends PolyvCommonVideoHelper<PolyvClou
     }
 
     public void processUserOffline(String longUid) {
+        PolyvJoinInfoEvent joinInfoEvent = joinRequests.get(longUid);
+        if (joinInfoEvent != null) {
+            PolyvJoinInfoEvent.ClassStatus classStatus = joinInfoEvent.getClassStatus();
+            if (classStatus == null) {
+                classStatus = new PolyvJoinInfoEvent.ClassStatus();
+            }
+            classStatus.setVoice(0);
+            joinInfoEvent.setClassStatus(classStatus);
+        }
+
         int pos = polyvLinkMicAdapter.getJoinsPos(longUid);
 
         //主屏的连麦者被移除  讲师移到主屏
-        if (pos == 0 &&subShowPPT) {
+        if (mainScreenLinkView != null && !TextUtils.isEmpty((String)mainScreenLinkView.getTag()) &&subShowPPT) {
             linkMicSelected = pptView;
             changeLinkMicView(subShowPPT);
         }
@@ -1218,7 +1358,9 @@ public class PolyvCloudClassVideoHelper extends PolyvCommonVideoHelper<PolyvClou
             startJoinListTimer();
             return;
         }
-        polyvLinkMicAdapter.addData(joinRequests.get(longUid), true);
+        if (polyvLinkMicAdapter!=null){
+            polyvLinkMicAdapter.addData(joinRequests.get(longUid), true);
+        }
 
 //        linkMicLayoutParent.scrollToPosition(polyvLinkMicAdapter.getItemCount() - 1,linkMicLayout);
 
@@ -1260,7 +1402,7 @@ public class PolyvCloudClassVideoHelper extends PolyvCommonVideoHelper<PolyvClou
     }
 
     private void sendJoinSuccess() {
-        polyvChatManager.sendJoinSuccessMessage(sessionId, PolyvLinkMicWrapper.getInstance().getLinkMicUid());
+        polyvChatManager.sendJoinSuccessMessage(getSessionId(), PolyvLinkMicWrapper.getInstance().getLinkMicUid());
     }
 
     private void showSubView() {
@@ -1360,7 +1502,13 @@ public class PolyvCloudClassVideoHelper extends PolyvCommonVideoHelper<PolyvClou
 
         if(isParticipant){
            if(!joinSuccess){
-               joinLinkByParticipant();
+               //延迟2.5秒了再以参与者身份加入连麦。
+               delayToJoinAsParticipant=PolyvRxTimer.delay(2500, new Consumer<Object>() {
+                   @Override
+                   public void accept(Object o) throws Exception {
+                       joinLinkByParticipant();
+                   }
+               });
            }else {
                controller.showStopLinkDialog(joinSuccess,false);
            }
@@ -1371,6 +1519,7 @@ public class PolyvCloudClassVideoHelper extends PolyvCommonVideoHelper<PolyvClou
     }
 
     private void joinLinkByParticipant() {
+        initSupportRTC();
         if(!TextUtils.isEmpty(PolyvVClassGlobalConfig.viewerId)){
             PolyvLinkMicWrapper.getInstance().getEngineConfig().mUid = Integer.valueOf(PolyvVClassGlobalConfig.viewerId);
         }
@@ -1384,7 +1533,8 @@ public class PolyvCloudClassVideoHelper extends PolyvCommonVideoHelper<PolyvClou
             polyvLinkMicAdapter.bindLinkMicFrontView(linkMicLayoutParent.getOwnView());
         }
         PolyvLinkMicWrapper.getInstance().muteLocalVideo("audio".equals(videoView.getLinkMicType()));
-
+        //参与者加入时，将角色调整为观众角色
+        PolyvLinkMicWrapper.getInstance().switchRoleToAudience();
         processJoinResponseMessage();
     }
 
@@ -1431,8 +1581,6 @@ public class PolyvCloudClassVideoHelper extends PolyvCommonVideoHelper<PolyvClou
     private void clearLinkStatus() {
         if (joinSuccess) {
             PolyvLinkMicWrapper.getInstance().leaveChannel();
-        } else {
-            leaveChannel();
         }
 
         linkMicLayoutParent.setVisibility(INVISIBLE);
@@ -1630,6 +1778,5 @@ public class PolyvCloudClassVideoHelper extends PolyvCommonVideoHelper<PolyvClou
     public boolean isSupportRTC() {
         return supportRTC;
     }
-
     // </editor-fold>
 }
