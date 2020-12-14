@@ -72,9 +72,6 @@
         [self.mainView insertSubview:self.pptVC.view atIndex:0];
         self.pptVC.view.frame = self.mainView.bounds;
     } else {
-        if (manualControl) {
-            self.pptFlag = manualControl;
-        }
         [self.mainView insertSubview:self.player.playerView atIndex:0];
         [self.player setFrame:self.mainView.bounds];
         [self.secondaryView insertSubview:self.pptVC.view atIndex:0];
@@ -110,6 +107,10 @@
 #pragma mark - private
 - (void)loadPPT {
     self.pptVC = [[PLVPPTViewController alloc] init];
+    // 此处定义需要设置的PPT占位图、宽度和背景色
+//    self.pptVC.pptBackgroundImgUrl = @"";
+//    self.pptVC.pptBackgroundImgWidth = @"100px";
+//    self.pptVC.pptBackgroundColor = @"rgba(0,0,0,0)";
     self.pptVC.delegate = self;
     self.pptVC.view.autoresizingMask = UIViewAutoresizingFlexibleWidth | UIViewAutoresizingFlexibleHeight;
     UIView *displayView = self.pptOnSecondaryView ? self.secondaryView : self.mainView;
@@ -162,11 +163,6 @@
         [self.moreView modifyModeBtnSelected:((PLVLivePlayerController*)self.player).audioMode];
     }
     
-    if (self.pptOnSecondaryView && !self.player.playingAD && !self.pptFlag) {//自动切换主屏为PPT，副屏为视频
-        self.pptFlag = YES;
-        [self switchAction:NO];
-    }
-
     if (![self cameraClosed] && !self.player.playingAD && !self.pptOnSecondaryView && self.secondaryView.hidden) {
         [self openSecondaryView];//推流端打开了摄像头，而iOS端，正在播放直播（非广告），副屏为视频且已经关闭，则自动打开副屏
     }

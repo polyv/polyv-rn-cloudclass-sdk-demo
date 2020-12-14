@@ -30,7 +30,6 @@
 @synthesize secondaryView;
 @synthesize originSecondaryFrame;
 @synthesize pptOnSecondaryView;
-@synthesize pptFlag;
 @synthesize countdownTimeView;
 @synthesize countdownTimeLabel;
 @synthesize countdownTimer;
@@ -48,11 +47,13 @@
 - (void)refreshPPT:(NSString *)json {
     if ([json containsString:@"\"isCamClosed\":1"]) {//推流端关闭了摄像头
         if (self.pptOnSecondaryView && !self.player.playingAD && !((PLVLivePlayerController *)self.player).linkMic) {//自动切换主屏为PPT，副屏为视频
-            self.pptFlag = YES;
             [self switchAction:NO];
         }
         
-        ((PLVLivePlayerController *)self.player).cameraClosed = YES;
+        if (((PLVLivePlayerController *)self.player).playing) {
+            //若正在直播中，收到则关闭；若不在直播中，则等待上课时的最新摄像头字段
+            ((PLVLivePlayerController *)self.player).cameraClosed = YES;
+        }
         if (!self.pptOnSecondaryView && !self.secondaryView.hidden) {//而iOS端，副屏为视频且已经打开，则自动关闭副屏
             [self closeSecondaryView:self.skinView];
         }
@@ -61,6 +62,10 @@
         if (!self.player.playingAD && ((PLVLivePlayerController *)self.player).playing && !self.pptOnSecondaryView && self.secondaryView.hidden) {//而iOS端，正在播放直播（非广告），副屏为视频且已经关闭，则自动打开副屏
             [self openSecondaryView];
         }
+    }
+    
+    if ([json containsString:@"\"pptAndVedioPosition\":1"]){
+        [self changeVideoAndPPTPosition:YES];
     }
     
     if (((PLVLivePlayerController *)self.player).linkMic) {
@@ -132,9 +137,6 @@
             [self.mainView insertSubview:self.pptVC.view atIndex:0];
             self.pptVC.view.frame = self.mainView.bounds;
         } else {
-            if (manualControl) {
-                self.pptFlag = manualControl;
-            }
             linkMicView.onBigView = YES;
             UIView *videoView = linkMicView.mainView;
             self.mainView.backgroundColor = linkMicView.videoView.hidden ? LinkMicViewBackgroundColor : [UIColor blackColor];
@@ -225,7 +227,6 @@
     if (streamState == PLVLiveStreamStateNoStream) {//没直播流
         [self hiddenLinkMic];
         self.skinView.controllView.hidden = YES;
-        self.pptFlag = NO;
         if (!self.secondaryView.hidden) {//副屏已经打开，则自动关闭副屏
             [self closeSecondaryView:self.skinView];
         }

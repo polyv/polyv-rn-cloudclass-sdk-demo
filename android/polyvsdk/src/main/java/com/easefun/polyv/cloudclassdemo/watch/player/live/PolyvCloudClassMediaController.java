@@ -461,6 +461,10 @@ public class PolyvCloudClassMediaController extends PolyvCommonMediacontroller<P
         if (!showPPT) {//如果不显示ppt  不触发此功能
             return;
         }
+        changePPTVideoLocationUncheckPPT();
+    }
+
+    public void changePPTVideoLocationUncheckPPT() {
         if (polyvCloudClassPlayerHelper != null) {
             if (!polyvCloudClassPlayerHelper.changePPTViewToVideoView(showPPTSubView)) {
                 return;

@@ -11,6 +11,7 @@ import com.easefun.polyv.businesssdk.model.video.PolyvPlayBackVO;
 import com.easefun.polyv.businesssdk.service.PolyvLoginManager;
 import com.easefun.polyv.businesssdk.vodplayer.PolyvVodSDKClient;
 import com.easefun.polyv.cloudclass.chat.PolyvChatApiRequestHelper;
+import com.easefun.polyv.cloudclass.config.PolyvLiveChannelType;
 import com.easefun.polyv.cloudclass.config.PolyvLiveSDKClient;
 import com.easefun.polyv.cloudclass.config.PolyvVClassGlobalConfig;
 import com.easefun.polyv.cloudclass.model.PolyvLiveClassDetailVO;
@@ -210,8 +211,18 @@ public class PolyvCloudClassRNModule extends ReactContextBaseJavaModule {
             @Override
             public void onSuccess(PolyvPlayBackVO playBack) {
                 sendSuccessMessage(promise);
-                boolean isLivePlayBack = playBack.getLiveType() == 0;
-                startActivityForPlayback(vid,channelId,userId, isLivePlayBack);
+
+                switch (playBack.getLiveType()) {
+                    case 0:
+                        startActivityForPlayback(vid,channelId,userId, true);
+                        break;
+                    case 1:
+                        startActivityForPlayback(vid,channelId,userId, false);
+                        break;
+                    default:
+                        ToastUtils.showShort("只支持云课堂类型频道或普通直播类型频道");
+                        break;
+                }
             }
 
             @Override
@@ -252,10 +263,21 @@ public class PolyvCloudClassRNModule extends ReactContextBaseJavaModule {
                 , new PolyvrResponseCallback<PolyvLiveStatusVO>() {
                     @Override
                     public void onSuccess(PolyvLiveStatusVO statusVO) {
-                        String data = statusVO.getData();
-                        String[] dataArr = data.split(",");
-
-                        boolean isAlone = "alone".equals(dataArr[1]);//是否有ppt
+                        PolyvLiveChannelType channelType = null;
+                        try {
+                            channelType = PolyvLiveChannelType.mapFromServerString(statusVO.getChannelType());
+                        } catch (PolyvLiveChannelType.UnknownChannelTypeException e) {
+                            progress.dismiss();
+                            ToastUtils.showShort("未知的频道类型");
+                            e.printStackTrace();
+                            return;
+                        }
+                        if (channelType != PolyvLiveChannelType.CLOUD_CLASS && channelType != PolyvLiveChannelType.NORMAL) {
+                            progress.dismiss();
+                            ToastUtils.showShort("只支持云课堂类型频道或普通直播类型频道");
+                            return;
+                        }
+                        final boolean isAlone = channelType == PolyvLiveChannelType.NORMAL;//是否有ppt
 
                         requestLiveDetail(channelId, promise, new Consumer<String>() {
                             @Override

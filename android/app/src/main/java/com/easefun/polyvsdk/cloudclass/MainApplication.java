@@ -2,6 +2,7 @@ package com.easefun.polyvsdk.cloudclass;
 
 import com.easefun.polyv.cloudclass.config.PolyvLiveSDKClient;
 import com.easefun.polyv.cloudclassdemo.PolyvCloudClassApp;
+import com.easefun.polyv.foundationsdk.utils.PolyvAppUtils;
 import com.polyv.rn.PolyvCloudClassRNPackage;
 import com.facebook.react.ReactApplication;
 import com.swmansion.gesturehandler.react.RNGestureHandlerPackage;

@@ -131,6 +131,12 @@
                                                                    authorization:nil
                                                                         userType:userType];
     loginUser.defaultUser = NO; // 屏蔽聊天室点击输入栏弹窗提示输入昵称
+    
+    NSMutableDictionary *muJsonDict = [[NSMutableDictionary alloc] initWithDictionary:loginUser.jsonDict];
+    muJsonDict[@"param4"] = liveConfig.param4 ?: @"";
+    muJsonDict[@"param5"] = liveConfig.param5 ?: @"";
+    loginUser.jsonDict = [muJsonDict copy];
+    
     self.loginUser = loginUser;
     [PLVChatroomManager sharedManager].socketUser = loginUser;
 }
@@ -546,6 +552,7 @@
 //    NSLog(@"%@--type:%lu, event:%@", NSStringFromSelector(_cmd), (unsigned long)chatObject.eventType, chatObject.event);
     switch (chatObject.eventType) {
         case PLVSocketChatRoomEventType_RELOGIN: {
+            [self.mediaVC clearResource];
             __weak typeof(self) weakSelf = self;
             UIAlertController *alertController = [UIAlertController alertControllerWithTitle:@"当前账号已在其他地方登录，您将被退出观看" message:nil preferredStyle:UIAlertControllerStyleAlert];
             [alertController addAction:[UIAlertAction actionWithTitle:@"确定" style:UIAlertActionStyleDefault handler:^(UIAlertAction * _Nonnull action) {
@@ -627,6 +634,10 @@
         [self.triviaCardVC openQuestionnaireContent:json]; // 打开问卷
     } else if (result == 1) {
         [self.triviaCardVC stopQuestionNaire:json];    // 关闭问卷
+    } else if (result == 2) {
+        [self.triviaCardVC sendQuestionNaireResult:json];    // 收到问卷结果
+    } else if (result == 3) {
+        [self.triviaCardVC questionNaireAchievement:json];    // 到问卷统计相关数据事件
     }
 }
 
@@ -641,7 +652,8 @@
 #pragma mark Custom message
 - (void)socketIO:(PLVSocketIO *)socketIO didReceiveCustomMessage:(NSDictionary *)customMessage {
     NSLog(@"%@--%@",NSStringFromSelector(_cmd),customMessage[@"EVENT"]);
-    [self.publicChatroomViewController addCustomMessage:customMessage mine:NO];
+    NSString *msgId = PLV_SafeStringForDictKey(customMessage, @"id");
+    [self.publicChatroomViewController addCustomMessage:customMessage mine:NO msgId:msgId];
 }
 
 #pragma mark Connect state
@@ -681,7 +693,34 @@
 - (void)chatroom:(PLVChatroomController *)chatroom emitSocketObject:(PLVSocketChatRoomObject *)object {
     if (self.socketIO.socketIOState == PLVSocketIOStateConnected) {
         if (self.loginSuccess) {
-            [self.socketIO emitMessageWithSocketObject:object];
+            if (object.eventType == PLVSocketChatRoomEventType_SPEAK || object.eventType == PLVSocketChatRoomEventType_CHAT_IMG) {
+                [self.socketIO emitACKWithSocketObject:object after:5 callback:^(NSArray *ackArray) {
+                    NSString *ackString = nil;
+                    if (ackArray && [ackArray count] > 0) {
+                        ackString = ackArray[0];
+                    }
+                    if (ackString && [ackString isKindOfClass:[NSString class]] && ackString.length > 0) {
+                        if (object.eventType == PLVSocketChatRoomEventType_CHAT_IMG) {
+                            if (![ackString isEqualToString:@"NO ACK"]) {
+                                NSArray *values = object.jsonDict[@"values"];
+                                NSDictionary *valuesDict = values[0];
+                                NSString *imageId = valuesDict[@"id"] ?: @"";
+                                NSDictionary *dict = @{@"msgId": ackString, @"imageId": imageId};
+                                [[NSNotificationCenter defaultCenter] postNotificationName:PLVChatroomSendImageMsgNotification
+                                                                                    object:nil
+                                                                                  userInfo:dict];
+                            }
+                        } else if (object.eventType == PLVSocketChatRoomEventType_SPEAK) {
+                            PLVChatroomModel *model = [PLVChatroomModel modelWithObject:object];
+                            model.msgId = ackString;
+                            [[NSNotificationCenter defaultCenter] postNotificationName:PLVChatroomSendTextMsgNotification
+                                                                                                           object:model];
+                        }
+                    }
+                }];
+            } else {
+                [self.socketIO emitMessageWithSocketObject:object];
+            }
         } else {
             [PCCUtils showChatroomMessage:@"聊天室未登录！" addedToView:self.pageController.view];
         }
@@ -717,7 +756,20 @@
 - (void)chatroom:(PLVChatroomController *)chatroom emitCustomEvent:(NSString *)event emitMode:(int)emitMode data:(NSDictionary *)data tip:(NSString *)tip {
     if (self.socketIO.socketIOState == PLVSocketIOStateConnected) {
         if (self.loginSuccess) {
-            [self.socketIO emitCustomEvent:event roomId:self.channelId emitMode:emitMode data:data tip:tip];
+            [self.socketIO emitCustomEvent:event roomId:self.channelId emitMode:emitMode data:data tip:tip after:self.triviaCardTimeoutSec callback:^(NSArray *ackArray) {
+                NSString *ackString = nil;
+                if (ackArray && [ackArray count] > 0) {
+                    ackString = ackArray[0];
+                }
+                if (ackString && [ackString isKindOfClass:[NSString class]] && ackString.length > 0) {
+                    NSDictionary *dict = [self dictionaryWithJsonString:ackString];
+                    NSString *msgId = PLV_SafeStringForDictKey(dict, @"data");
+                    NSDictionary *customMessage = @{@"EVENT":(event ?: @""), @"version":@(1), @"data":(data ?: @{})};
+                    [[NSNotificationCenter defaultCenter] postNotificationName:PLVChatroomSendCustomMsgNotification
+                                                                        object:msgId
+                                                                      userInfo:customMessage];
+                }
+            }];
         } else {
             [PCCUtils showChatroomMessage:@"聊天室未登录！" addedToView:self.pageController.view];
         }
@@ -1068,6 +1120,23 @@
         weakSelf.viewerNumber += reportNumber; // 上报失败，人数不清零，倒计时5秒后再试
         [weakSelf startViewerTimer];
     }];
+}
+
+#pragma mark - Utils
+
+- (NSDictionary *)dictionaryWithJsonString:(NSString *)jsonString {
+     if (jsonString == nil) {
+         return nil;
+     }
+     NSData *jsonData = [jsonString dataUsingEncoding:NSUTF8StringEncoding];
+     NSError *err;
+     NSDictionary *dic = [NSJSONSerialization JSONObjectWithData:jsonData
+                                                         options:NSJSONReadingMutableContainers
+                                                           error:&err];
+     if (err) {
+         return nil;
+     }
+     return dic;
 }
 
 @end

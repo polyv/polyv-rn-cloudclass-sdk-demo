@@ -25,6 +25,12 @@
 #import "PLVChatroomDefine.h"
 #import "PLVGiveRewardView.h"
 #import "PLVRewardDisplayManager.h"
+#import "MyTool.h"
+#import <PolyvFoundationSDK/PLVAuthorizationManager.h>
+
+NSString *PLVChatroomSendTextMsgNotification = @"PLVChatroomSendTextMsgNotification";
+NSString *PLVChatroomSendImageMsgNotification = @"PLVChatroomSendImageMsgNotification";
+NSString *PLVChatroomSendCustomMsgNotification = @"PLVChatroomSendCustomMsgNotification";
 
 typedef NS_ENUM(NSInteger, PLVMarqueeViewType) {
     PLVMarqueeViewTypeMarquee     = 1,// 跑马灯公告
@@ -152,6 +158,21 @@ PLVSocketChatRoomObject *createTeacherAnswerObject() {
     }
     
     [[NSNotificationCenter defaultCenter] addObserver:self selector:@selector(photoBrowserDidShowImageOnScreen) name:PLVPhotoBrowserDidShowImageOnScreenNotification object:nil];
+    
+    if (self.type < PLVTextInputViewTypePrivate) {
+        [[NSNotificationCenter defaultCenter] addObserver:self
+                                                 selector:@selector(sendTextMsgSuccess:)
+                                                     name:PLVChatroomSendTextMsgNotification
+                                                   object:nil];
+        [[NSNotificationCenter defaultCenter] addObserver:self
+                                                 selector:@selector(sendImageMsgSuccess:)
+                                                     name:PLVChatroomSendImageMsgNotification
+                                                   object:nil];
+        [[NSNotificationCenter defaultCenter] addObserver:self
+                                                 selector:@selector(sendCustomMessageSuccess:)
+                                                     name:PLVChatroomSendCustomMsgNotification
+                                                   object:nil];
+    }
     
     [self requestPointSetting];
 }
@@ -385,7 +406,12 @@ PLVSocketChatRoomObject *createTeacherAnswerObject() {
         } break;
         default: {
             PLVChatroomModel *model = [PLVChatroomModel modelWithObject:object];
-            [self addModel:model];
+            //严禁词
+            if (model.type == PLVChatroomModelTypeProhibitedWord) {
+                [PCCUtils showChatroomMessage:[NSString stringWithFormat:@"%@", model.content] addedToView:self.view];
+            } else {
+                [self addModel:model];
+            }
         } break;
     }
     if (object.eventType==PLVSocketChatRoomEventType_LOGIN || object.eventType==PLVSocketChatRoomEventType_LOGOUT) {
@@ -396,10 +422,13 @@ PLVSocketChatRoomObject *createTeacherAnswerObject() {
     }
 }
 
-- (void)addCustomMessage:(NSDictionary *)customeMessage mine:(BOOL)mine {
+- (void)addCustomMessage:(NSDictionary *)customeMessage mine:(BOOL)mine msgId:(NSString *)msgId {
     PLVChatroomCustomModel *customModel = [PLVChatroomManager modelWithCustomMessage:customeMessage mine:mine];
     if (customModel) {
         if (customModel.defined) {
+            if (PLV_SafeStringForValue(msgId)) {
+                customModel.msgId = msgId;
+            }
             [self addModel:customModel];
         } else {
             [PCCUtils showChatroomMessage:customModel.tip addedToView:self.view];
@@ -443,6 +472,20 @@ PLVSocketChatRoomObject *createTeacherAnswerObject() {
 }
 
 #pragma mark - Private methods
+
+- (void)presentAlertController:(NSString *)message {
+    [MyTool presentAlertController:message inViewController:self];
+}
+
+- (void)openCamera {
+    [PLVLiveVideoConfig sharedInstance].unableRotate = YES;
+    PLVCameraViewController *cameraVC = [[PLVCameraViewController alloc] init];
+    cameraVC.delegate = self;
+    [PCCUtils deviceOnInterfaceOrientationMaskPortrait];
+    cameraVC.modalPresentationStyle = UIModalPresentationFullScreen;
+    [(UIViewController *)self.delegate presentViewController:cameraVC animated:YES completion:nil];
+}
+
 - (void)tapChatInputView {
     if (self.chatInputView) {
         [self.chatInputView tapAction];
@@ -648,9 +691,50 @@ PLVSocketChatRoomObject *createTeacherAnswerObject() {
     }];
 }
 
-#pragma mark Notifications
+#pragma mark - Notifications
 - (void)photoBrowserDidShowImageOnScreen {
     [self tapChatInputView];
+}
+
+- (void)sendTextMsgSuccess:(NSNotification *)notif {
+    PLVChatroomModel *model = (PLVChatroomModel *)notif.object;
+    if (model) {
+        [self addModel:model];
+    }
+}
+
+- (void)sendImageMsgSuccess:(NSNotification *)notif {
+    NSDictionary *dict = (NSDictionary *)notif.userInfo;
+    if (!dict ||
+        !dict[@"imageId"] || ![dict[@"imageId"] isKindOfClass:[NSString class]] ||
+        !dict[@"msgId"] || ![dict[@"msgId"] isKindOfClass:[NSString class]]) {
+        return;
+    }
+    NSString *imageId = dict[@"imageId"];
+    NSString *msgId = dict[@"msgId"];
+    if (imageId.length == 0 || msgId.length == 0) {
+        return;
+    }
+    for (int i = 0; i < [self.chatroomData count]; i++) {
+        PLVChatroomModel *model = self.chatroomData[i];
+        if ([model.imgId isEqualToString:imageId]) {
+            model.msgId = msgId;
+        }
+    }
+    for (int i = 0; i < [self.teacherData count]; i++) {
+        PLVChatroomModel *model = self.teacherData[i];
+        if ([model.imgId isEqualToString:imageId]) {
+            model.msgId = msgId;
+        }
+    }
+}
+
+- (void)sendCustomMessageSuccess:(NSNotification *)notif {
+    NSDictionary *dict = (NSDictionary *)notif.userInfo;
+    NSString *object = (NSString *)notif.object;
+    
+    // 生成本地自定义消息数据
+    [self addCustomMessage:dict mine:YES msgId:object];
 }
 
 #pragma mark - Interaction
@@ -892,9 +976,7 @@ PLVSocketChatRoomObject *createTeacherAnswerObject() {
     PLVChatroomModel *model;
     if (self.type < PLVTextInputViewTypePrivate) {
         PLVSocketChatRoomObject *mySpeak = [PLVSocketChatRoomObject chatroomForSpeakWithContent:text sessionId:[self currentChannelSessionId] loginUser:[PLVChatroomManager sharedManager].socketUser];
-        BOOL success = [self emitChatroomMessageWithObject:mySpeak];
-        if (success)
-            model = [PLVChatroomModel modelWithObject:mySpeak];
+        [self emitChatroomMessageWithObject:mySpeak];
     } else {
         PLVSocketChatRoomObject *question = [PLVSocketChatRoomObject chatRoomObjectForStudentQuestionEventTypeWithLoginObject:socketUser content:text];
         BOOL success = [self emitChatroomMessageWithObject:question];
@@ -950,12 +1032,29 @@ PLVSocketChatRoomObject *createTeacherAnswerObject() {
 }
 
 - (void)shoot:(PLVTextInputView *)inputView {
-    [PLVLiveVideoConfig sharedInstance].unableRotate = YES;
-    PLVCameraViewController *cameraVC = [[PLVCameraViewController alloc] init];
-    cameraVC.delegate = self;
-    [PCCUtils deviceOnInterfaceOrientationMaskPortrait];
-    cameraVC.modalPresentationStyle = UIModalPresentationFullScreen;
-    [(UIViewController *)self.delegate presentViewController:cameraVC animated:YES completion:nil];
+    __weak typeof(self) weakSelf = self;
+    PLVAuthorizationStatus status = [PLVAuthorizationManager authorizationStatusWithType:PLVAuthorizationTypeMediaVideo];
+    switch (status) {
+        case PLVAuthorizationStatusAuthorized: {
+            [weakSelf openCamera];
+        } break;
+        case PLVAuthorizationStatusDenied:
+        case PLVAuthorizationStatusRestricted:
+        {
+            [weakSelf performSelector:@selector(presentAlertController:) withObject:@"你没开通访问相机的权限，如要开通，请移步到:设置->隐私->相机 开启" afterDelay:0.1];
+        } break;
+        case PLVAuthorizationStatusNotDetermined: {
+            [PLVAuthorizationManager requestAuthorizationWithType:PLVAuthorizationTypeMediaVideo completion:^(BOOL granted) {
+                if (granted) {
+                    [weakSelf openCamera];
+                }else {
+                    [weakSelf performSelector:@selector(presentAlertController:) withObject:@"你没开通访问相机的权限，如要开通，请移步到:设置->隐私->相机 开启" afterDelay:0.1];
+                }
+            }];
+        } break;
+        default:
+            break;
+    }
 }
 
 - (void)readBulletin:(PLVTextInputView *)inputView{
@@ -969,10 +1068,6 @@ PLVSocketChatRoomObject *createTeacherAnswerObject() {
 
 #pragma mark Emit Custom Message
 - (void)emitCustomEvent:(NSString *)event emitMode:(int)emitMode data:(NSDictionary *)data tip:(NSString *)tip {
-    // 生成本地自定义消息数据
-    NSDictionary * customMessage = @{@"EVENT":event, @"version":@(1), @"data":data};
-    [self addCustomMessage:customMessage mine:YES];
-    
     if (self.delegate && [self.delegate respondsToSelector:@selector(chatroom:emitCustomEvent:emitMode:data:tip:)]) {
         [self.delegate chatroom:self emitCustomEvent:event emitMode:emitMode data:data tip:tip];
     }
